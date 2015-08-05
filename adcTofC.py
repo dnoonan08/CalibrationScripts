@@ -111,7 +111,8 @@ def main( argv ):
 
     # Create DBs in memory
     conCardMap = createDB_HFcard(True)
-    conSlopes = createDB_fromCSV("Slopes_offset.csv", True)
+#    conSlopes = createDB_fromCSV("InjectionBoardCalibration/SlopesOffsets_card1.csv", True)
+    conSlopes = lite.connect("InjectionBoardCalibration/SlopesOffsets.db")
     con = createDB_QIE()
 
     # array
