@@ -2,6 +2,8 @@ from ROOT import *
 import sys
 import os
 from array import array
+import sqlite3 as lite
+
 
 gROOT.SetBatch()
 
@@ -44,6 +46,12 @@ for fName in sys.argv[1:]:
         fList.append(fName)
 
 outputText = open('slopeOffset.csv','w')
+
+outputDB = lite.connect("SlopesOffsets.db")
+cursor = outputDB.cursor()
+
+cursor.execute("create table if not exists cardcal(card INT, dac INT, pigtail INT, rangelow REAL, rangehigh REAL, offset REAL, slope REAL)")
+
 
 for fName in fList:
     values = fName.split('/')[-1].split('.txt')[0].split('_')
@@ -104,11 +112,20 @@ for fName in fList:
     for l in lines: l.Draw("same")
     c1.SaveAs("plots/"+graph.GetName()+".pdf")
 
+    cursor.execute("delete from cardcal where card=? and dac=? and pigtail=?",(card, dac, pigtail))
     for line in lines:
-        print '%i,%i,%i,%f,%f,%.12f,%.12f\n'%(card, dac, pigtail,line.GetXmin(),line.GetXmax(),line.GetParameter(1), line.GetParameter(0))
+        print '%i,%i,%i,%f,%f,%.12f,%.12f\n'%(card, dac, pigtail,line.GetXmin(),line.GetXmax(),line.GetParameter(0), line.GetParameter(1))
 
-        output = '%i,%i,%i,%f,%f,%.12f,%.12f\n'%(card, dac, pigtail,line.GetXmin(),line.GetXmax(),line.GetParameter(1), line.GetParameter(0))
+        output = '%i,%i,%i,%f,%f,%.12f,%.12f\n'%(card, dac, pigtail,line.GetXmin(),line.GetXmax(),line.GetParameter(0), line.GetParameter(1))
         outputText.write(output)
+
+
+        cursor.execute("insert into cardcal values(?,?,?,?,?,?,?)",(card, dac, pigtail,line.GetXmin(),line.GetXmax(),line.GetParameter(0), line.GetParameter(1)))
 
     outFile.cd()
     graph.Write()
+
+
+cursor.close()
+outputDB.commit()
+outputDB.close()
