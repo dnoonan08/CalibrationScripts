@@ -60,7 +60,7 @@ def createDB_fromCSV( filename, verbose=False ):
     for row in reader:
         to_db = [unicode(row[0], "utf8"), unicode(row[1], "utf8"), unicode(row[2], "utf8"), unicode(row[3], "utf8"), unicode(row[4], "utf8"), unicode(row[5], "utf8")]
         cur.execute("INSERT INTO CARDCAL (card, pigtail, rangelow, rangehigh, offset, slope) VALUES (?, ?, ?, ?, ?, ?);", to_db)
-    con.commit()
+    con.commit()    
     if verbose:
         cur.execute("SELECT * FROM CARDCAL")
         header = ''
@@ -109,7 +109,7 @@ def main( argv ):
     print "hello"
     print argv
 
-    # Create DBs in memory
+    # # Create DBs in memory
     conCardMap = createDB_HFcard(True)
 #    conSlopes = createDB_fromCSV("InjectionBoardCalibration/SlopesOffsets_card1.csv", True)
     conSlopes = lite.connect("InjectionBoardCalibration/SlopesOffsets.db")
@@ -133,89 +133,101 @@ def main( argv ):
                 x_axis_R[irange].append ( row["low_input_charge"] + row["sensitivity"]*iadc )
 
 
-    roo_outfile = TFile( "new.root", "RECREATE")
+    
 
+    histo_list = range(60,68)
 
-    histo_list = [20, 21, 22 ]
-    QIE_ADC_list = {}
-    QIE_LSB_list = {}
-    QIE_fC_list = {}
+    QIE_values = {}
     for ih in histo_list:
-        QIE_ADC_list[ih] = []
-        QIE_LSB_list[ih] = []
-        QIE_fC_list[ih] = []
+        QIE_values[ih] = []
 
     print 
-    for fileName in argv:
-        # Get LSB from filename
-        print fileName
-        aLSB = fileName.strip('.root').split('_')[2]
-        aLSB = int(aLSB)
-        print "LSB: " + str(aLSB)
-    
-        # Open root file
-        roo_infile = TFile( fileName ) 
+
+    for fileDir in argv:
+        print fileDir
+        outFileName = "output_"
+        calRange = -1
+        date = -1
+        dirSplit = fileDir.split('/')
+        for d in dirSplit:
+            if 'Cal_range' in d: calRange = d.split("_")[2]
+            if '2015' in d: date = d
+        outFileName = "output_Range_"+calRange+"_"+date+".root"
+        roo_outfile = TFile( outFileName, "RECREATE")
+        _fileList = os.listdir(fileDir)
+        fileList = []
+        for f in _fileList:
+            if 'Cal' in f and '.root' in f: fileList.append(f)
+        for fileName in fileList:
+            # Get LSB from filename
+            print fileName
+            aLSB = fileName.strip('.root').split('_')[-1]
+            aLSB = int(aLSB)
+            print "LSB: " + str(aLSB)
         
-        histo_map = {}
-    
+            # Open root file
+            roo_infile = TFile( fileDir + "/" + fileName ) 
+            
+    #        histo_map = {}
+        
+            for ih in histo_list:
+        
+                histo_name = "h"+str(ih)
+                horg = roo_infile.Get(histo_name)
+    #            print horg.GetMean(), horg.GetRMS()
+                horg.SetBinContent(1,0)
+    #            histo_map[histo_name] = horg
+                x_maximum = horg.GetXaxis().GetBinCenter(horg.GetMaximumBin())
+                print "Got histogram with name: " + horg.GetName() +", mean: "+str(horg.GetMean())+", rms: "+str(horg.GetRMS())+", Maximum@: "+str(x_maximum)+"\n"
+        
+                # Get channel,pigtial from histogram
+                cur_CardMap = conCardMap.cursor()
+                query = ( ih, )
+                cur_CardMap.execute('SELECT pigtail, channel FROM HFcard WHERE histo=?', query )
+                channel_t = cur_CardMap.fetchone()
+                pigtail = channel_t[0]
+                channel = channel_t[1]
+                print "Pigtail: "+str(pigtail)
+                print "Channel: "+str(channel)
+        
+                # Get calibration for channel
+                cur_Slopes = conSlopes.cursor()
+                query = ( pigtail, )
+                cur_Slopes.execute('SELECT offset, slope FROM CARDCAL WHERE pigtail=?', query )
+                result_t = cur_Slopes.fetchone()
+                offset = result_t[0]
+                slope = result_t[1]
+                print "Slope = "+str(slope) + " Offset= "+str(offset)
+        
+                # charge = aLSB*slope+offset
+                # print "Charge =",charge,"fC"
+                current = aLSB*slope+offset
+                charge = 25.e6*current
+                
+                #charge is plotted negatively
+                QIE_values[ih].append([aLSB,-1*charge,horg.GetMean(), horg.GetRMS()])
+        
+
         for ih in histo_list:
-    
-            histo_name = "h"+str(ih)
-            horg = roo_infile.Get(histo_name)
-            histo_map[histo_name] = horg
-            x_maximum = horg.GetXaxis().GetBinCenter(horg.GetMaximumBin())
-            print "Got histogram with name: " + horg.GetName() +", mean: "+str(horg.GetMean())+", rms: "+str(horg.GetRMS())+", Maximum@: "+str(x_maximum)+"\n"
-    
-            # Get channel,pigtial from histogram
-            cur_CardMap = conCardMap.cursor()
-            query = ( ih, )
-            cur_CardMap.execute('SELECT pigtail, channel FROM HFcard WHERE histo=?', query )
-            channel_t = cur_CardMap.fetchone()
-            pigtail = channel_t[0]
-            channel = channel_t[1]
-            print "Pigtail: "+str(pigtail)
-            print "Channel: "+str(channel)
-    
-            # Get calibration for channel
-            cur_Slopes = conSlopes.cursor()
-            query = ( pigtail, aLSB, aLSB)
-            cur_Slopes.execute('SELECT offset, slope FROM CARDCAL WHERE pigtail=? AND rangehigh>=? AND rangelow<=?', query )
-            result_t = cur_Slopes.fetchone()
-            print result_t
-            offset = result_t[0]
-            slope = result_t[1]
-            print "Slope = "+str(slope) + " Offset= "+str(offset)
-    
-            current = aLSB*slope+offset
-            charge = current * -25e6
-            print "Charge =",charge,"fC"
-    
-            QIE_ADC_list[ih].append(x_maximum)
-            QIE_LSB_list[ih].append(aLSB)
-            QIE_fC_list[ih].append(charge)
-    
-    # new histogram
-    roo_outfile.cd()
-    for ih in histo_list:
-        lsb_array = array('d',QIE_LSB_list[ih])
-        adc_array = array('d',QIE_ADC_list[ih])
-        fc_array = array('d',QIE_fC_list[ih])
+            QIE_values[ih].sort()
+        # new histogram
+        roo_outfile.cd()
+        for ih in histo_list:
+            lsb_array = array('d',[b[0] for b in QIE_values[ih]])
+            fc_array = array('d',[b[1] for b in QIE_values[ih]])
+            adc_array = array('d',[b[2] for b in QIE_values[ih]])
+            adcerr_array = array('d',[b[3] for b in QIE_values[ih]])
+            xerror_array = array('d',[0]*len(lsb_array))
 
-        print lsb_array
-        print adc_array
-        print fc_array
-        # LSBvsADC = TGraph('fCvsADC_'+str(ih),len(lsb_array),lsb_array,adc_array)
-        # fCvsADC = TGraph('fCvsADC_'+str(ih),len(fC_array),fC_array,adc_array)
+            LSBvsADC = TGraphErrors(len(lsb_array),lsb_array,adc_array,xerror_array, adcerr_array)
+            fCvsADC =  TGraphErrors(len(fc_array), fc_array,adc_array ,xerror_array, adcerr_array)
+            LSBvsADC.SetNameTitle("LSBvsADC_"+str(ih),"LSBvsADC_"+str(ih))
+            fCvsADC.SetNameTitle("fCvsADC_"+str(ih),"fCvsADC_"+str(ih))
 
-        LSBvsADC = TGraph(len(lsb_array),lsb_array,adc_array)
-        fCvsADC =  TGraph(len(fc_array),fc_array,adc_array)
-        LSBvsADC.SetNameTitle("LSBvsADC_"+str(ih),"LSBvsADC_"+str(ih))
-        fCvsADC.SetNameTitle("fCvsADC_"+str(ih),"fCvsADC_"+str(ih))
-
-        LSBvsADC.Write()
-        fCvsADC.Write()
-    print "done"
-
+            LSBvsADC.Write()
+            fCvsADC.Write()
+        print "done"
+    
 if __name__ == '__main__':
     main( sys.argv[1:] )
     
