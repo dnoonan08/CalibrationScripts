@@ -183,17 +183,19 @@ def main( argv ):
                 # Get channel,pigtial from histogram
                 cur_CardMap = conCardMap.cursor()
                 query = ( ih, )
-                cur_CardMap.execute('SELECT pigtail, channel FROM HFcard WHERE histo=?', query )
+                cur_CardMap.execute('SELECT card, pigtail, channel FROM HFcard WHERE histo=?', query )
                 channel_t = cur_CardMap.fetchone()
-                pigtail = channel_t[0]
-                channel = channel_t[1]
+                card    = channel_t[0]
+                pigtail = channel_t[1]
+                channel = channel_t[2]
+                print "Card:    "+str(card)
                 print "Pigtail: "+str(pigtail)
                 print "Channel: "+str(channel)
         
                 # Get calibration for channel
                 cur_Slopes = conSlopes.cursor()
-                query = ( pigtail, )
-                cur_Slopes.execute('SELECT offset, slope FROM CARDCAL WHERE pigtail=?', query )
+                query = ( pigtail, card)
+                cur_Slopes.execute('SELECT offset, slope FROM CARDCAL WHERE pigtail=? AND card=?', query )
                 result_t = cur_Slopes.fetchone()
                 offset = result_t[0]
                 slope = result_t[1]
@@ -203,9 +205,9 @@ def main( argv ):
                 # print "Charge =",charge,"fC"
                 current = aLSB*slope+offset
                 charge = 25.e6*current
-                
-                #charge is plotted negatively
-                QIE_values[ih].append([aLSB,-1*charge,horg.GetMean(), horg.GetRMS()])
+
+                if horg.GetMean() > 0:
+                    QIE_values[ih].append([aLSB,-1*charge,horg.GetMean(), horg.GetRMS()])
         
 
         for ih in histo_list:
