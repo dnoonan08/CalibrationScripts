@@ -223,11 +223,14 @@ def main( argv ):
 
             LSBvsADC = TGraphErrors(len(lsb_array),lsb_array,adc_array,xerror_array, adcerr_array)
             fCvsADC =  TGraphErrors(len(fc_array), fc_array,adc_array ,xerror_array, adcerr_array)
+            ADCvsfC =  TGraphErrors(len(fc_array),adc_array , fc_array,adcerr_array,xerror_array)
             LSBvsADC.SetNameTitle("LSBvsADC_"+str(ih),"LSBvsADC_"+str(ih))
             fCvsADC.SetNameTitle("fCvsADC_"+str(ih),"fCvsADC_"+str(ih))
+            ADCvsfC.SetNameTitle("ADCvsfC_"+str(ih),"ADCvsfC_"+str(ih))
 
             LSBvsADC.Write()
             fCvsADC.Write()
+            ADCvsfC.Write()
         print "done"
     
 if __name__ == '__main__':
