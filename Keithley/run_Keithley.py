@@ -4,9 +4,9 @@ import sys
 t = Keithley()
 #t.print_instrument()
 
+t.time_delay=6
 t.read(False)
 
-t.time_delay=10
 
 if len(sys.argv)> 1:
 
