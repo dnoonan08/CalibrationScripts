@@ -108,44 +108,59 @@ def createDB_QIE(verbose=False):
 def makeADCvsfCgraph(lsbList, values, histo_list = range(0,72)):
     conCardMap = createDB_HFcard(True)
 #    conSlopes = createDB_fromCSV("InjectionBoardCalibration/SlopesOffsets_card1.csv", True)
-    conSlopes = lite.connect("InjectionBoardCalibration/SlopesOffsets.db")
+    conSlopes = lite.connect("../InjectionBoardCalibration/SlopesOffsets.db")
 #    con = createDB_QIE()
-    QIE_values = {}
-    for ih in histo_list:
-        QIE_values[ih] = []
-
-    # Get calibration for channel
-    cur_Slopes = conSlopes.cursor()
-    
-    for i_lsb in lsbList:
-
-        query = ( pigtail, card, i_lsb, i_lsb)
-        cur_Slopes.execute('SELECT offset, slope FROM CARDCAL WHERE pigtail=? AND card=? AND rangehigh>? AND rangelow<?', query )
-        result_t = cur_Slopes.fetchone()
-        offset = result_t[0]
-        slope = result_t[1]
-        print "Slope = "+str(slope) + " Offset= "+str(offset)
-
-        current = i_lsb*slope + offset
-        charge = current*25e6
-
-        mean = values[i_lsb]['mean']
-        rms = values[i_lsb]['rms']
-        QIE_values[ih].append([aLSB,-1*charge,mean,rms])
-
-
-    for ih in histo_list:
-        QIE_values[ih].sort()
-
+#    QIE_values = {}
     graphs = {}
-    # new histogram
     for ih in histo_list:
-        fc_array = array('d',[b[1] for b in QIE_values[ih]])
-        adc_array = array('d',[b[2] for b in QIE_values[ih]])
-        adcerr_array = array('d',[b[3] for b in QIE_values[ih]])
+        QIE_values = []
+
+        # Get channel,pigtial from histogram
+        print ih
+        cur_CardMap = conCardMap.cursor()
+        query = ( ih, )
+        cur_CardMap.execute('SELECT card, pigtail, channel FROM HFcard WHERE histo=?', query )
+        channel_t = cur_CardMap.fetchone()
+        print channel_t
+        card    = channel_t[0]
+        pigtail = channel_t[1]
+        channel = channel_t[2]
+        print "Card:    "+str(card)
+        print "Pigtail: "+str(pigtail)
+        print "Channel: "+str(channel)
+        
+        # Get calibration for channel
+        cur_Slopes = conSlopes.cursor()
+    
+        for i_lsb in lsbList:
+        
+
+            query = ( pigtail, card, i_lsb, i_lsb)
+            cur_Slopes.execute('SELECT offset, slope FROM CARDCAL WHERE pigtail=? AND card=? AND rangehigh>=? AND rangelow<=?', query )
+            result_t = cur_Slopes.fetchone()
+            print query
+            print result_t
+            offset = result_t[0]
+            slope = result_t[1]
+            print "Slope = "+str(slope) + " Offset= "+str(offset)
+
+            current = i_lsb*slope + offset
+            charge = current*25e6
+            
+            print ih, values[i_lsb][ih]['link']*4 + values[i_lsb][ih]['channel']
+            
+            mean = values[i_lsb][ih]['mean']
+            meanerr = values[i_lsb][ih]['meanerr']
+            QIE_values.append([i_lsb,-1*charge,mean,meanerr])
+
+        QIE_values.sort()
+
+        fc_array = array('d',[b[1] for b in QIE_values])
+        adc_array = array('d',[b[2] for b in QIE_values])
+        adcerr_array = array('d',[b[3] for b in QIE_values])
         fCerror_array = array('d',[0]*len(fc_array))
 
-        ADCvsfC =  TGraphErrors(len(fc_array),adc_array , fc_array,adcerr_array,xerror_array)
+        ADCvsfC =  TGraphErrors(len(fc_array),adc_array , fc_array,adcerr_array,fCerror_array)
         ADCvsfC.SetNameTitle("ADCvsfC_"+str(ih),"ADCvsfC_"+str(ih))
 
         graphs[ih]=ADCvsfC

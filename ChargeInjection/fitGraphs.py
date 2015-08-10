@@ -9,7 +9,7 @@ ROOT.gStyle.SetCanvasColor(0)
 
 def doFit(graph, qieRange, saveGraph = False, qieNumber = 0, qieUniqueID = ""):
     
-    vOffset = 64*qieRange
+    vOffset = 64*int(qieRange)
 
     def subrangeFit(x,p):
         if x[0] - vOffset < 16:
