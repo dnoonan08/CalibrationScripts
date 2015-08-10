@@ -42,7 +42,7 @@ def doFit(graph, qieRange, saveGraph = False, qieNumber = 0, qieUniqueID = ""):
         graph.GetXaxis().SetTitle("ADC")
 
         c1 = TCanvas()
-        graph.SetMarkerStyle(20)
+#        graph.SetMarkerStyle(2)
         graph.Draw("ap")
         combined.SetLineColor(kRed)
         combined.Draw("same")
