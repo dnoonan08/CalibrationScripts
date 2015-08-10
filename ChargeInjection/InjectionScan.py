@@ -135,10 +135,16 @@ if __name__ == "__main__":
 			  help="do not use calibration mode" )
 	parser.add_option("--save","--savehistos",action="store_true",dest="saveHistograms", default=False,
 			  help="save the histogram output files")
-	
+	parser.add_option("--histoList", dest="histoList",default=range(96),
+			  help="choose histogram range to look at")
+
 	(options, args) = parser.parse_args()
 	
 	ts = teststand("904")
+
+	scanRange = scan[options.range]
+	if not options.scan == []:
+		scanRange = options.scan
 
 	print ts.fe_crates
 	print ts.qie_slots
@@ -146,8 +152,9 @@ if __name__ == "__main__":
 		for i_slot in ts.qie_slots[0]:
 			print i_crate, i_slot, get_unique_id(ts, i_crate, i_slot)
 
-	results = doScan()
+	results = doScan(ts, options.cardNumber, options.dacNumber, scanRange, options.range, options.useFixRange, options.useCalibrationMode, options.saveHistograms)
 
-	graphs = makeADCvsfCgraph()
+	graphs = makeADCvsfCgraph(scanRange,results, options.histoList)
+
 	
 
