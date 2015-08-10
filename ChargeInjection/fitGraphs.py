@@ -51,6 +51,17 @@ def doFit(graph, qieRange, saveGraph = False, qieNumber = 0, qieUniqueID = ""):
         ymin = graph.GetYaxis().GetXmin()
         ymax = graph.GetYaxis().GetXmax()
 
+        doSub0 =xmin < 15+vOffset
+        doSub1 =xmin < 35+vOffset and xmax > 16+vOffset
+        doSub2 =xmin < 56+vOffset and xmax > 36+vOffset
+        doSub3 =xmax > 57+vOffset
+        
+        countsubranges = 0
+        if doSub0: countsubranges += 1
+        if doSub1: countsubranges += 1
+        if doSub2: countsubranges += 1
+        if doSub3: countsubranges += 1
+
         text = TPaveText(xmin + (xmax-xmin)*.1, ymax - (ymax-ymin)*(.1+.1*countsubranges),xmin + (xmax-xmin)*.6,ymax-(ymax-ymin)*.1)
         text.SetFillColor(kWhite)
         text.SetFillStyle(4000)
@@ -58,6 +69,7 @@ def doFit(graph, qieRange, saveGraph = False, qieNumber = 0, qieUniqueID = ""):
         text.Draw("same")
 
         c1.SaveAs(saveName)
-    
+
+    params = []
     params = combined.GetParameters()
     return params
