@@ -16,7 +16,7 @@ from hcal_teststand.qie import *
 
 from scans import *
 
-
+from adcTofC import *
 
 # ldlibrarypath = subprocess.Popen('echo $LD_LIBRARY_PATH',stdout=PIPE,shell=True).communicate()[0]
 # hasUsrLocalLib = '/usr/local/lib' in ldlibrarypath
@@ -116,6 +116,7 @@ def doScan(ts, injCardNumber = 1, dacNumber = 1, scanRange = range(30), qieRange
 	
 	setDAC(0)
 	setup("{0}".format(qieRange))            
+	return results
 
 
 if __name__ == "__main__":
@@ -125,9 +126,9 @@ if __name__ == "__main__":
 	parser.add_option("-d", "--dac", dest="dacnumber", default="2" ,
 			  help="DAC used" )
 	parser.add_option("-r", "--range", dest="range",default=0 ,
-			  help="choose which range you would like to scan: 0, 1, 2, 3, custom" )
+			  help="choose which range you would like to scan: 0, 1, 2, 3" )
 	parser.add_option("-s", "--scan", dest="scan", default=[] ,
-			  help="set a custom DAC range you want to scan over" )
+			  help="set a range of DAC values you want to scan over" )
 	parser.add_option("--nofixed", action="store_false", dest="useFixedRange", default=True ,
 			  help="do not use fixed range mode")
 	parser.add_option("--nocalmode", action="store_false", dest="useCalibrationMode", default=True ,
@@ -138,4 +139,15 @@ if __name__ == "__main__":
 	(options, args) = parser.parse_args()
 	
 	ts = teststand("904")
+
+	print ts.fe_crates
+	print ts.qie_slots
+	for i_crate in ts.fe_crates:
+		for i_slot in ts.qie_slots[0]:
+			print i_crate, i_slot, get_unique_id(ts, i_crate, i_slot)
+
+	results = doScan()
+
+	graphs = makeADCvsfCgraph()
+	
 
