@@ -79,9 +79,9 @@ def doScan(ts, injCardNumber = 1, dacNumber = 1, scanRange = range(30), qieRange
 
 
 	if useFixRange:
-		qie.set_fixed_range_all(ts, 1, 2, True, qieRange)
+		set_fix_range_all(ts, 1, 2, True, int(qieRange))
 	if useCalibrationMode:
-		qie.set_cal_range_all(ts, 1, 2, True)
+		set_cal_mode_all(ts, 1, 2, True)
 
 	initLinks(ts)
 
@@ -134,17 +134,20 @@ def main(options):
 	qieParams = lite.connect("qieParameters.db")
 	cursor = qieParams.cursor()
 
-	cursor.execute("create table if not exists qieparams(id STRING, qie INT, range INT, slope REAL, offset0 REAL, offset1 REAL, offset2 REAL, offset3 REAL")
+	cursor.execute("create table if not exists qieparams(id STRING, qie INT, range INT, slope REAL, offset0 REAL, offset1 REAL, offset2 REAL, offset3 REAL)")
 	
 
 	for ih in histoList:
 		graph = graphs[ih]
 		print ih
-		params = doFit(graph,options.range)
-
 		qieNum = ih%24 + 1
-		values = (qieCardID, qieNum, options.range, params[0], params[1], params[2], params[3], params[4])
-		cursor.execute("insert into qieparams values (?, ?, ?, ?, ?, ?, ?, ?)",values)
+		print qieCardID
+		qieID = "%s %s" %(qieCardID[0], qieCardID[1])
+
+		params = doFit(graph,int(options.range), True, qieNum, qieID.replace(' ', '_'))
+
+		values = (qieID, qieNum, options.range, params[0], params[1], params[2], params[3], params[4])
+		cursor.execute("insert or replace into qieparams values (?, ?, ?, ?, ?, ?, ?, ?)",values)
 
 	cursor.close()
 	qieParams.commit()

@@ -2,6 +2,8 @@ from ROOT import *
 import sys
 import numpy
 
+import os
+
 gROOT.SetBatch()
 ROOT.gStyle.SetCanvasColor(0)
 
@@ -28,10 +30,14 @@ def doFit(graph, qieRange, saveGraph = False, qieNumber = 0, qieUniqueID = ""):
 
     if saveGraph:
         qieInfo = ""
-        saveName = "plots/ADCvsfC"
+        saveName = "plots/"
         if qieUniqueID != "": 
             qieInfo += ", Card ID "+qieUniqueID
-            saveName += "_"+qieUniqueID
+        else:
+            qieUniqueID = "UnknownID"
+        os.system("mkdir plots/%s"%qieUniqueID)
+        saveName += qieUniqueID
+        saveName += "/ADCvsfC"
         if qieNumber != 0: 
             qieInfo += ", QIE " + str(qieNumber)
             saveName += "_"+str(qieNumber)
@@ -51,10 +57,17 @@ def doFit(graph, qieRange, saveGraph = False, qieNumber = 0, qieUniqueID = ""):
         ymin = graph.GetYaxis().GetXmin()
         ymax = graph.GetYaxis().GetXmax()
 
+        graph.GetXaxis().SetRangeUser(vOffset-10,vOffset+74)
+        graph.GetYaxis().SetRangeUser(ymin*.9,ymax*1.1)
+        
+
         doSub0 =xmin < 15+vOffset
         doSub1 =xmin < 35+vOffset and xmax > 16+vOffset
         doSub2 =xmin < 56+vOffset and xmax > 36+vOffset
         doSub3 =xmax > 57+vOffset
+
+        xmin = vOffset-10
+        xmax = vOffset+74
         
         countsubranges = 0
         if doSub0: countsubranges += 1
