@@ -4,7 +4,7 @@ import numpy
 
 import os
 
-gROOT.SetBatch()
+#gROOT.SetBatch()
 ROOT.gStyle.SetCanvasColor(0)
 
 
@@ -24,9 +24,45 @@ def doFit(graph, qieRange, saveGraph = False, qieNumber = 0, qieUniqueID = ""):
             return 8*p[0]*x[0] + p[4]
         else: return 0
 
-    combined = TF1("fullrange",subrangeFit,1+vOffset,62+vOffset,5)
-    combined.SetParameters(1,-1,-1,-1,-1)
+    def subrangeFit_sep(x,p):
+        if x[0] - vOffset < 16:
+            return p[0]*x[0] + p[1]
+        elif x[0] - vOffset < 35:
+            return p[2]*x[0] + p[3]
+        elif x[0] - vOffset < 57:
+            return p[4]*x[0] + p[5]
+        elif x[0] - vOffset < 63:
+            return p[6]*x[0] + p[7]
+        else: return 0
+
+    def subrangeFit_continuous(x,p):
+        if x[0] - vOffset < 16:
+            return p[0]*x[0] + p[1]
+        elif x[0] - vOffset < 36:
+            return 2*p[0]*x[0] - p[0]*(16+vOffset) + p[1]
+        elif x[0] - vOffset < 57:
+            return 4*p[0]*x[0] -2*p[0]*(vOffset+36) - p[0]*(16+vOffset) + p[1]
+        elif x[0] - vOffset < 63:
+            return 8*p[0]*x[0] -4*p[0]*(vOffset+57) -2*p[0]*(vOffset+36) - p[0]*(16+vOffset) + p[1]
+        else: return 0
+
+    def subrangeFit_continuous_ratio(x,p):
+        if x[0] - vOffset < 16:
+            return p[0]*x[0] + p[1]
+        elif x[0] - vOffset < 36:
+            return p[2]*p[0]*x[0] - p[0]*(16+vOffset) + p[1]
+        elif x[0] - vOffset < 57:
+            return p[2]**2*p[0]*x[0] -p[2]*p[0]*(vOffset+36) - p[0]*(16+vOffset) + p[1]
+        elif x[0] - vOffset < 63:
+            return p[2]**3*p[0]*x[0] -p[2]**2*p[0]*(vOffset+57) -p[2]*p[0]*(vOffset+36) - p[0]*(16+vOffset) + p[1]
+        else: return 0
+
+
+
+    combined = TF1("fullrange",subrangeFit_continuous,1+vOffset,62+vOffset,2)
+    combined.SetParameters(1,-1)
     graph.Fit(combined,"","",1+vOffset,62+vOffset)
+
 
     if saveGraph:
         qieInfo = ""
@@ -66,8 +102,10 @@ def doFit(graph, qieRange, saveGraph = False, qieNumber = 0, qieUniqueID = ""):
         doSub2 =xmin < 56+vOffset and xmax > 36+vOffset
         doSub3 =xmax > 57+vOffset
 
-        xmin = vOffset-10
+        print xmin
+        xmin = max(vOffset,xmin)-10
         xmax = vOffset+74
+        print xmin
         
         countsubranges = 0
         if doSub0: countsubranges += 1
@@ -78,7 +116,7 @@ def doFit(graph, qieRange, saveGraph = False, qieNumber = 0, qieUniqueID = ""):
         text = TPaveText(xmin + (xmax-xmin)*.1, ymax - (ymax-ymin)*(.1+.1*countsubranges),xmin + (xmax-xmin)*.6,ymax-(ymax-ymin)*.1)
         text.SetFillColor(kWhite)
         text.SetFillStyle(4000)
-        text.AddText("Constrained slope =  %.2f fC/ADC" % (combined.GetParameter(0)))
+        text.AddText("Constrained slope =  %.2f +- %.2f fC/ADC" % (combined.GetParameter(0), combined.GetParError(0)))
         text.Draw("same")
 
         c1.SaveAs(saveName)
