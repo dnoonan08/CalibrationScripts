@@ -8,6 +8,7 @@ import sys
 from scans import *
 from adcTofC import *
 from fitGraphs import *
+from ROOT import *
 
 sys.path.insert(0, '../../hcal_teststand_scripts')
 
@@ -69,7 +70,48 @@ def initLinks(ts):
 #		print line['cmd'], line['result']
 
 
-def doScan(ts, injCardNumber = 1, dacNumber = 1, scanRange = range(30), qieRange=0, useFixRange=True, useCalibrationMode=True, saveHistograms = True):
+def read_histo(file_in="", sepCapID=True, qierange = 0):
+	result = []
+	tf = TFile(file_in, "READ")
+	tc = TCanvas("tc", "tc", 500, 500)
+	if sepCapID:
+		print
+		for i_link in range(24):
+			for i_ch in range(4):
+				th = tf.Get("h{0}".format(4*i_link + i_ch))
+				info = {}
+				info["link"] = i_link
+				info["channel"] = i_ch
+				info["mean"] = []
+				info["meanerr"] = []
+				info["rms"] = []
+				for i_capID in range(4):
+					offset = 64*(i_capID+qierange)
+					th.GetXaxis().SetRangeUser(offset, offset+64)
+					info["mean"] = th.GetMean()
+					info["meanerr"] = th.GetMeanError()
+					info["rms"] = th.GetRMS()
+					#                               info["stddev"] = th.GetStdDev()
+				result.append(info)
+		
+	else:
+		for i_link in range(24):
+			for i_ch in range(4):
+				th = tf.Get("h{0}".format(4*i_link + i_ch))
+				info = {}
+				info["link"] = i_link
+				info["channel"] = i_ch
+				info["mean"] = th.GetMean()
+				info["meanerr"] = th.GetMeanError()
+				info["rms"] = th.GetRMS()
+				#                               info["stddev"] = th.GetStdDev()
+				result.append(info)
+	return result
+		
+																																						
+
+
+def doScan(ts, injCardNumber = 1, dacNumber = 1, scanRange = range(30), qieRange=0, useFixRange=True, useCalibrationMode=True, saveHistograms = True, sepCapID = True):
 
 
 
@@ -93,8 +135,8 @@ def doScan(ts, injCardNumber = 1, dacNumber = 1, scanRange = range(30), qieRange
 		sleep(5)
 		histName = ""
 		if saveHistograms: histName = "Calibration_LSB_{0}.root".format( i )
-		fName = uhtr.get_histo(ts,uhtr_slot=ts.uhtr_slots[0],n_orbits=4000, sepCapID=0, file_out=outputDirectory+histName)
-		vals = uhtr.read_histo(fName)
+		fName = uhtr.get_histo(ts,uhtr_slot=ts.uhtr_slots[0],n_orbits=4000, sepCapID=sepCapID, file_out=outputDirectory+histName)
+		vals = read_histo(fName,sepCapID,int(qieRange))
 		results[i] = vals
 	
 	setDAC(0)
@@ -111,6 +153,8 @@ def main(options):
 
 	print scanRange
 
+	sepCapID = options.sepCapID
+
 	print ts.fe_crates
 	print ts.qie_slots
 	uniqueID = {}
@@ -124,30 +168,46 @@ def main(options):
 	qieCardID = get_unique_id(ts,1,2)
 
 
-	results = doScan(ts, options.cardnumber, options.dacnumber, scanRange, options.range, options.useFixRange, options.useCalibrationMode, options.saveHistograms)
+	results = doScan(ts, options.cardnumber, options.dacnumber, scanRange, options.range, options.useFixRange, options.useCalibrationMode, options.saveHistograms,sepCapID=sepCapID)
 
 	histoList = eval(options.histoList)
-	#Will need to find a way of updating the mapping between injection boards and qie boards
-	graphs = makeADCvsfCgraph(scanRange,results, histoList)
 
 
 	qieParams = lite.connect("qieParameters.db")
 	cursor = qieParams.cursor()
 
-	cursor.execute("create table if not exists qieparams(id STRING, qie INT, range INT, slope REAL, offset0 REAL, offset1 REAL, offset2 REAL, offset3 REAL)")
-	
+	cursor.execute("create table if not exists qieparams(id STRING, qie INT, capID INT, range INT, slope REAL, offset REAL)")
+		
 
-	for ih in histoList:
-		graph = graphs[ih]
-		print ih
-		qieNum = ih%24 + 1
-		print qieCardID
-		qieID = "%s %s" %(qieCardID[0], qieCardID[1])
+	print qieCardID
+	qieID = "%s %s" %(qieCardID[0], qieCardID[1])
 
-		params = doFit(graph,int(options.range), True, qieNum, qieID.replace(' ', '_'))
+	#Will need to find a way of updating the mapping between injection boards and qie boards
 
-		values = (qieID, qieNum, options.range, params[0], params[1], params[2], params[3], params[4])
-		cursor.execute("insert or replace into qieparams values (?, ?, ?, ?, ?, ?, ?, ?)",values)
+	if sepCapID:
+		graphs = makeADCvsfCgraphSepCapID(scanRange,results, histoList, sepCapID)
+
+		for ih in histoList:
+			for i_capID in range(4):
+				graph = graphs[ih][i_capID]
+				params = doFit(graph,int(oprtions.range), True, qieNum, qieID.raplace(' ', '_'))
+
+				values = (qieID, qieNum, i_capID, options.range, params[0], params[1])
+				cursor.execute("insert or replace into qieparams values (?, ?, ?, ?, ?, ?)",values)
+				
+	else:
+		capID = -1
+		graphs = makeADCvsfCgraph(scanRange,results, histoList, sepCapID)
+
+		for ih in histoList:
+			graph = graphs[ih]
+			print ih
+			qieNum = ih%24 + 1
+
+			params = doFit(graph,int(options.range), True, qieNum, qieID.replace(' ', '_'))
+			
+			values = (qieID, qieNum, i_capID, options.range, params[0], params[1])
+			cursor.execute("insert or replace into qieparams values (?, ?, ?, ?, ?, ?)",values)
 
 	cursor.close()
 	qieParams.commit()
@@ -172,6 +232,8 @@ if __name__ == "__main__":
 			  help="save the histogram output files")
 	parser.add_option("--histoList", dest="histoList",default=range(96),
 			  help="choose histogram range to look at")
+	parser.add_option("--NoSepCapID", action="store_False",default=True,
+			  help="don't separate the different capID histograms")
 
 	(options, args) = parser.parse_args()
 	
