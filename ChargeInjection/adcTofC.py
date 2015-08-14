@@ -147,11 +147,11 @@ def makeADCvsfCgraph(lsbList, values, histo_list = range(0,72)):
             current = i_lsb*slope + offset
             charge = current*25e6
             
-            print ih, values[i_lsb][ih]['link']*4 + values[i_lsb][ih]['channel']
+#            print ih, values[i_lsb][ih]['link']*4 + values[i_lsb][ih]['channel']
             
             mean = values[i_lsb][ih]['mean']
-            meanerr = values[i_lsb][ih]['meanerr']
-            QIE_values.append([i_lsb,-1*charge,mean,meanerr])
+            rms = values[i_lsb][ih]['rms']
+            QIE_values.append([i_lsb,-1*charge,mean,rms])
 
         QIE_values.sort()
 
@@ -183,13 +183,13 @@ def makeADCvsfCgraphSepCapID(lsbList, values, histo_list = range(0,72)):
         query = ( ih, )
         cur_CardMap.execute('SELECT card, pigtail, channel FROM HFcard WHERE histo=?', query )
         channel_t = cur_CardMap.fetchone()
-        print channel_t
+#        print channel_t
         card    = channel_t[0]
         pigtail = channel_t[1]
         channel = channel_t[2]
-        print "Card:    "+str(card)
-        print "Pigtail: "+str(pigtail)
-        print "Channel: "+str(channel)
+        # print "Card:    "+str(card)
+        # print "Pigtail: "+str(pigtail)
+        # print "Channel: "+str(channel)
         
         # Get calibration for channel
         cur_Slopes = conSlopes.cursor()
@@ -200,24 +200,24 @@ def makeADCvsfCgraphSepCapID(lsbList, values, histo_list = range(0,72)):
             query = ( pigtail, card, i_lsb, i_lsb)
             cur_Slopes.execute('SELECT offset, slope FROM CARDCAL WHERE pigtail=? AND card=? AND rangehigh>=? AND rangelow<=?', query )
             result_t = cur_Slopes.fetchone()
-            print query
-            print result_t
+            # print query
+            # print result_t
             offset = result_t[0]
             slope = result_t[1]
-            print "Slope = "+str(slope) + " Offset= "+str(offset)
+            # print "Slope = "+str(slope) + " Offset= "+str(offset)
 
             current = i_lsb*slope + offset
             charge = current*25e6
 
             
-            print ih, values[i_lsb][ih]['link']*4 + values[i_lsb][ih]['channel']
+            # print ih, values[i_lsb][ih]['link']*4 + values[i_lsb][ih]['channel']
 
-            mean = []
-            meanerr = []
+            mean_ = []
+            rms_ = []
             for i_capID in range(4):
-                mean.append(values[i_lsb][ih]['mean'][i_capID])
-                meanerr.append(values[i_lsb][ih]['meanerr'][i_capID])
-            QIE_values.append([i_lsb,-1*charge,mean,meanerr])
+                mean_.append(values[i_lsb][ih]['mean'][i_capID])
+                rms_.append(values[i_lsb][ih]['rms'][i_capID])
+            QIE_values.append([i_lsb,-1*charge,mean_,rms_])
 
         QIE_values.sort()
 
@@ -228,8 +228,10 @@ def makeADCvsfCgraphSepCapID(lsbList, values, histo_list = range(0,72)):
             adc_array = array('d',[b[2][i_capID] for b in QIE_values])
             adcerr_array = array('d',[b[3][i_capID] for b in QIE_values])
 
+            
+
             ADCvsfC =  TGraphErrors(len(fc_array),adc_array , fc_array,adcerr_array,fCerror_array)
-            ADCvsfC.SetNameTitle("ADCvsfC_%i_capID_%i"&(ih,i_capID),"ADCvsfC_%i_capID_%i"&(ih,i_capID))
+            ADCvsfC.SetNameTitle("ADCvsfC_%i_capID_%i"%(ih,i_capID),"ADCvsfC_%i_capID_%i"%(ih,i_capID))
 
             graphs[ih].append(ADCvsfC)
 

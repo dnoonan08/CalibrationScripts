@@ -75,7 +75,6 @@ def read_histo(file_in="", sepCapID=True, qierange = 0):
 	tf = TFile(file_in, "READ")
 	tc = TCanvas("tc", "tc", 500, 500)
 	if sepCapID:
-		print
 		for i_link in range(24):
 			for i_ch in range(4):
 				th = tf.Get("h{0}".format(4*i_link + i_ch))
@@ -86,11 +85,11 @@ def read_histo(file_in="", sepCapID=True, qierange = 0):
 				info["meanerr"] = []
 				info["rms"] = []
 				for i_capID in range(4):
-					offset = 64*(i_capID+qierange)
-					th.GetXaxis().SetRangeUser(offset, offset+64)
-					info["mean"] = th.GetMean()
-					info["meanerr"] = th.GetMeanError()
-					info["rms"] = th.GetRMS()
+					offset = 64*(i_capID)
+					th.GetXaxis().SetRangeUser(offset, offset+63)
+					info["mean"].append(th.GetMean()-offset)
+					info["meanerr"].append(th.GetMeanError())
+					info["rms"].append(th.GetRMS())
 					#                               info["stddev"] = th.GetStdDev()
 				result.append(info)
 		
@@ -111,13 +110,14 @@ def read_histo(file_in="", sepCapID=True, qierange = 0):
 																																						
 
 
-def doScan(ts, injCardNumber = 1, dacNumber = 1, scanRange = range(30), qieRange=0, useFixRange=True, useCalibrationMode=True, saveHistograms = True, sepCapID = True):
+def doScan(ts, injCardNumber = 1, dacNumber = 1, scanRange = range(30), qieRange=0, useFixRange=True, useCalibrationMode=True, saveHistograms = True, sepCapID = True, SkipScan = False):
 
-
+	print 'SepCap', sepCapID
 
 	if saveHistograms:
 		outputDirectory = "injector_card_{0}_DAC_{1}/Cal_range_{2}_mode/{3}/".format(injCardNumber, dacNumber, qieRange, str(date.today() ) )
-		os.system( "mkdir -pv "+outputDirectory )
+		if not os.path.exists(outputDirectory):
+			os.system( "mkdir -pv "+outputDirectory )
 
 
 	if useFixRange:
@@ -125,22 +125,30 @@ def doScan(ts, injCardNumber = 1, dacNumber = 1, scanRange = range(30), qieRange
 	if useCalibrationMode:
 		set_cal_mode_all(ts, 1, 2, True)
 
-	initLinks(ts)
+	if not SkipScan:
+		initLinks(ts)
 
 	results = {}
 	for i in scanRange:
-		print i
-		setDAC( i)
-		# setup("{0}".format(options.scan))
-		sleep(5)
+
 		histName = ""
 		if saveHistograms: histName = "Calibration_LSB_{0}.root".format( i )
-		fName = uhtr.get_histo(ts,uhtr_slot=ts.uhtr_slots[0],n_orbits=4000, sepCapID=sepCapID, file_out=outputDirectory+histName)
+		if not SkipScan:
+			print 'LSB', i
+			setDAC( i)
+			# setup("{0}".format(options.scan))
+			sleep(5)
+			if sepCapID:
+				fName = uhtr.get_histo(ts,uhtr_slot=ts.uhtr_slots[0],n_orbits=4000, sepCapID=1, file_out=outputDirectory+histName)
+			else:
+				fName = uhtr.get_histo(ts,uhtr_slot=ts.uhtr_slots[0],n_orbits=4000, sepCapID=0, file_out=outputDirectory+histName)
+			setDAC(0)
+			setup("{0}".format(qieRange))            
+		else:
+			fName = outputDirectory+histName
 		vals = read_histo(fName,sepCapID,int(qieRange))
 		results[i] = vals
 	
-	setDAC(0)
-	setup("{0}".format(qieRange))            
 	return results
 
 
@@ -154,24 +162,27 @@ def main(options):
 	print scanRange
 
 	sepCapID = options.sepCapID
+	print sepCapID
 
-	print ts.fe_crates
-	print ts.qie_slots
-	uniqueID = {}
-	for i_crate in ts.fe_crates:
-		uniqueID[i_crate] = {}
-		for i_slot in ts.qie_slots[0]:
-			uniqueID[i_crate][i_slot] = get_unique_id(ts, i_crate, i_slot)
-			print i_crate, i_slot, get_unique_id(ts, i_crate, i_slot)
+	if not options.SkipScan:
+		print ts.fe_crates
+		print ts.qie_slots
+		uniqueID = {}
+		for i_crate in ts.fe_crates:
+			uniqueID[i_crate] = {}
+			for i_slot in ts.qie_slots[0]:
+				uniqueID[i_crate][i_slot] = get_unique_id(ts, i_crate, i_slot)
+				print i_crate, i_slot, get_unique_id(ts, i_crate, i_slot)
+
+		qieCardID = get_unique_id(ts,1,2)
 
 #### Find which injection board is hooked up to which range of QIE's
-	qieCardID = get_unique_id(ts,1,2)
 
+	qieCardID = ['0x8d000000', '0xaa24da70']
 
-	results = doScan(ts, options.cardnumber, options.dacnumber, scanRange, options.range, options.useFixRange, options.useCalibrationMode, options.saveHistograms,sepCapID=sepCapID)
+	results = doScan(ts, options.cardnumber, options.dacnumber, scanRange, options.range, options.useFixRange, options.useCalibrationMode, options.saveHistograms,sepCapID=sepCapID, SkipScan=options.SkipScan)
 
 	histoList = eval(options.histoList)
-
 
 	qieParams = lite.connect("qieParameters.db")
 	cursor = qieParams.cursor()
@@ -185,14 +196,18 @@ def main(options):
 	#Will need to find a way of updating the mapping between injection boards and qie boards
 
 	if sepCapID:
-		graphs = makeADCvsfCgraphSepCapID(scanRange,results, histoList, sepCapID)
+		graphs = makeADCvsfCgraphSepCapID(scanRange,results, histoList)
 
 		for ih in histoList:
 			for i_capID in range(4):
 				graph = graphs[ih][i_capID]
-				params = doFit(graph,int(oprtions.range), True, qieNum, qieID.raplace(' ', '_'))
+				print ih, i_capID
+				print graph
+				qieNum = ih%24 + 1
+				params = doFit(graph,int(options.range), True, qieNum, qieID.replace(' ', '_'),i_capID)
 
 				values = (qieID, qieNum, i_capID, options.range, params[0], params[1])
+				
 				cursor.execute("insert or replace into qieparams values (?, ?, ?, ?, ?, ?)",values)
 				
 	else:
@@ -230,10 +245,12 @@ if __name__ == "__main__":
 			  help="do not use calibration mode" )
 	parser.add_option("--save","--savehistos",action="store_true",dest="saveHistograms", default=False,
 			  help="save the histogram output files")
-	parser.add_option("--histoList", dest="histoList",default=range(96),
+	parser.add_option("--histoList", dest="histoList",default='range(96)',
 			  help="choose histogram range to look at")
-	parser.add_option("--NoSepCapID", action="store_False",default=True,
+	parser.add_option("--NoSepCapID", action="store_false",dest="sepCapID",default=True,
 			  help="don't separate the different capID histograms")
+	parser.add_option("--SkipScan", action="store_true",dest="SkipScan",default=False,
+			  help="Skip the scan, using presaved scan")
 
 	(options, args) = parser.parse_args()
 	
