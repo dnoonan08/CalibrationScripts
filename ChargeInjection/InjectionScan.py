@@ -60,11 +60,12 @@ def initLinks(ts):
 		'0',
 		'0',
 		'quit',
-		'quit',
 		'exit',
-		'exit'
+		'-1'
 		]
-	uhtr.send_commands_script(ts, ts.uhtr_slots[0], cmds)
+	output = uhtr.send_commands_script(ts, ts.uhtr_slots[0], cmds)
+#	print output['output']
+	sleep(2)
 #	for line in output['output']:
 #		print line
 #		print line['cmd'], line['result']
@@ -135,19 +136,21 @@ def doScan(ts, injCardNumber = 1, dacNumber = 1, scanRange = range(30), qieRange
 		if saveHistograms: histName = "Calibration_LSB_{0}.root".format( i )
 		if not SkipScan:
 			print 'LSB', i
-			setDAC( i)
+			setDAC(i)
 			# setup("{0}".format(options.scan))
 			sleep(5)
 			if sepCapID:
 				fName = uhtr.get_histo(ts,uhtr_slot=ts.uhtr_slots[0],n_orbits=4000, sepCapID=1, file_out=outputDirectory+histName)
 			else:
 				fName = uhtr.get_histo(ts,uhtr_slot=ts.uhtr_slots[0],n_orbits=4000, sepCapID=0, file_out=outputDirectory+histName)
-			setDAC(0)
-			setup("{0}".format(qieRange))            
 		else:
 			fName = outputDirectory+histName
 		vals = read_histo(fName,sepCapID,int(qieRange))
 		results[i] = vals
+
+	setDAC(0)
+	set_fix_range_all(ts, 1, 2, False, int(qieRange))
+	set_cal_mode_all(ts, 1, 2, False)
 	
 	return results
 
@@ -221,8 +224,11 @@ def main(options):
 
 			params = doFit(graph,int(options.range), True, qieNum, qieID.replace(' ', '_'))
 			
+			cursor.execute("remove from qieparams where qieID=? and qieNum=? and i_capID=? and range=?",(qieID, qieNum, i_capID, options.range))
+			
 			values = (qieID, qieNum, i_capID, options.range, params[0], params[1])
-			cursor.execute("insert or replace into qieparams values (?, ?, ?, ?, ?, ?)",values)
+
+			cursor.execute("insert into qieparams values (?, ?, ?, ?, ?, ?)",values)
 
 	cursor.close()
 	qieParams.commit()

@@ -2,7 +2,7 @@
 DACscan_range0 = range(160)
 DACscan_range1 = range(100,240, 5)+ range(240,500,10) + range(500,1000,20) + range(1000,1600,50)
 DACscan_range2 = range(1200,2100, 75)+range(2100,4200,150) + range(4200,9000,300) + range(9000,13000,500)
-DACscan_range3 = range(12000,14000,1000)
+DACscan_range3 = range(12000,45000,1000)
 
 scans = { "0" : DACscan_range0 ,
           "1" : DACscan_range1 ,
