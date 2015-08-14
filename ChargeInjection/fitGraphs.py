@@ -59,9 +59,13 @@ def doFit(graph, qieRange, saveGraph = False, qieNumber = 0, qieUniqueID = "", c
             return p[2]**3*p[0]*x[0] -p[2]**2*p[0]*(vOffset+57) -p[2]*p[0]*(vOffset+36) - p[0]*(16+vOffset) + p[1]
         else: return 0
 
+    xmin = graph.GetXaxis().GetXmin()
+    xmax = graph.GetXaxis().GetXmax()
+    ymin = graph.GetYaxis().GetXmin()
+    ymax = graph.GetYaxis().GetXmax()
 
-
-    combined = TF1("fullrange",subrangeFit_continuous,1+vOffset,62+vOffset,2)
+    
+    combined = TF1("fullrange",subrangeFit_continuous,1+vOffset,xmax-1+vOffset,2)
     combined.SetParameters(1,-1)
     combined.SetLineWidth(2)
     graph.Fit(combined,"","",1+vOffset,62+vOffset)
@@ -95,10 +99,6 @@ def doFit(graph, qieRange, saveGraph = False, qieNumber = 0, qieUniqueID = "", c
         graph.Draw("ap")
         combined.SetLineColor(kRed)
         combined.Draw("same")
-        xmin = graph.GetXaxis().GetXmin()
-        xmax = graph.GetXaxis().GetXmax()
-        ymin = graph.GetYaxis().GetXmin()
-        ymax = graph.GetYaxis().GetXmax()
 
         graph.GetXaxis().SetRangeUser(vOffset-10,vOffset+74)
         graph.GetYaxis().SetRangeUser(ymin*.9,ymax*1.1)
