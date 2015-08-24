@@ -105,7 +105,7 @@ def createDB_QIE(verbose=False):
 
     return con
 
-def makeADCvsfCgraph(lsbList, values, histo_list = range(0,72)):
+def makeADCvsfCgraph(lsbList, values, histo_list = range(0,96)):
     conCardMap = createDB_HFcard(True)
 #    conSlopes = createDB_fromCSV("InjectionBoardCalibration/SlopesOffsets_card1.csv", True)
     conSlopes = lite.connect("../InjectionBoardCalibration/SlopesOffsets.db")
@@ -121,13 +121,13 @@ def makeADCvsfCgraph(lsbList, values, histo_list = range(0,72)):
         query = ( ih, )
         cur_CardMap.execute('SELECT card, pigtail, channel FROM HFcard WHERE histo=?', query )
         channel_t = cur_CardMap.fetchone()
-        print channel_t
+#        print channel_t
         card    = channel_t[0]
         pigtail = channel_t[1]
         channel = channel_t[2]
-        print "Card:    "+str(card)
-        print "Pigtail: "+str(pigtail)
-        print "Channel: "+str(channel)
+#        print "Card:    "+str(card)
+#        print "Pigtail: "+str(pigtail)
+#        print "Channel: "+str(channel)
         
         # Get calibration for channel
         cur_Slopes = conSlopes.cursor()
@@ -168,7 +168,7 @@ def makeADCvsfCgraph(lsbList, values, histo_list = range(0,72)):
     return graphs
 
 
-def makeADCvsfCgraphSepCapID(lsbList, values, histo_list = range(0,72)):
+def makeADCvsfCgraphSepCapID(lsbList, values, histo_list = range(0,96)):
     conCardMap = createDB_HFcard(True)
 
     conSlopes = lite.connect("../InjectionBoardCalibration/SlopesOffsets.db")
@@ -227,8 +227,6 @@ def makeADCvsfCgraphSepCapID(lsbList, values, histo_list = range(0,72)):
             fCerror_array = array('d',[0]*len(fc_array))
             adc_array = array('d',[b[2][i_capID] for b in QIE_values])
             adcerr_array = array('d',[b[3][i_capID] for b in QIE_values])
-
-            
 
             ADCvsfC =  TGraphErrors(len(fc_array),adc_array , fc_array,adcerr_array,fCerror_array)
             ADCvsfC.SetNameTitle("ADCvsfC_%i_capID_%i"%(ih,i_capID),"ADCvsfC_%i_capID_%i"%(ih,i_capID))
