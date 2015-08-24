@@ -70,8 +70,56 @@ def initLinks(ts):
 #		print line
 #		print line['cmd'], line['result']
 
+from linearizeHists import *
 
-def read_histo(file_in="", sepCapID=True, qierange = 0):
+newOutTest = TFile("testingNew.root",'recreate')
+
+def read_histoTest(file_in="", sepCapID=True, qieRange = 0,lsb=0,histoList = range(96)):
+	result = {}
+	tf = TFile(file_in, "READ")
+	tc = TCanvas("tc", "tc", 500, 500)
+	if sepCapID:
+		for i_link in range(24):
+			for i_ch in range(4):
+				hNum = 4*i_link + i_ch
+				if hNum in histoList:
+					th = tf.Get("h{0}".format(hNum))
+				
+					info = {}
+					info["link"] = i_link
+					info["channel"] = i_ch
+					info["mean"] = []
+					info["meanerr"] = []
+					info["rms"] = []
+					for i_capID in range(4):
+						offset = 64*(i_capID)
+						newHist = linearizeHist(th,qieRange,offset,hNum,i_capID,lsb)
+						newOutTest.cd()
+						newHist.Write()
+						info['mean'].append(newHist.GetMean())
+						info["meanerr"].append(newHist.GetMeanError())
+						info["rms"].append(newHist.GetRMS())
+
+					result[hNum] = info
+				
+	else:
+		for i_link in range(24):
+			for i_ch in range(4):
+				th = tf.Get("h{0}".format(4*i_link + i_ch))
+				info = {}
+				info["link"] = i_link
+				info["channel"] = i_ch
+				info["mean"] = th.GetMean()
+				info["meanerr"] = th.GetMeanError()
+				info["rms"] = th.GetRMS()
+				#                               info["stddev"] = th.GetStdDev()
+				result.append(info)
+	return result
+		
+																																						
+
+
+def read_histo(file_in="", sepCapID=True, qieRange = 0):
 	result = []
 	tf = TFile(file_in, "READ")
 	tc = TCanvas("tc", "tc", 500, 500)
@@ -79,6 +127,9 @@ def read_histo(file_in="", sepCapID=True, qierange = 0):
 		for i_link in range(24):
 			for i_ch in range(4):
 				th = tf.Get("h{0}".format(4*i_link + i_ch))
+				th.GetXaxis().SetRangeUser(0,63)
+				if th.GetMaximumBin() > 2:
+					th.SetBinContent(1,0)
 				info = {}
 				info["link"] = i_link
 				info["channel"] = i_ch
@@ -88,7 +139,7 @@ def read_histo(file_in="", sepCapID=True, qierange = 0):
 				for i_capID in range(4):
 					offset = 64*(i_capID)
 					th.GetXaxis().SetRangeUser(offset, offset+63)
-					info["mean"].append(th.GetMean()-offset)
+					info["mean"].append(th.GetMean() - offset + qieRange*64)
 					info["meanerr"].append(th.GetMeanError())
 					info["rms"].append(th.GetRMS())
 					#                               info["stddev"] = th.GetStdDev()
@@ -111,21 +162,42 @@ def read_histo(file_in="", sepCapID=True, qierange = 0):
 																																						
 
 
-def doScan(ts, injCardNumber = 1, dacNumber = 1, scanRange = range(30), qieRange=0, useFixRange=True, useCalibrationMode=True, saveHistograms = True, sepCapID = True, SkipScan = False):
+def doScan(ts, injCardNumber = 1, dacNumber = 1, scanRange = range(30), qieRange=0, useFixRange=True, useCalibrationMode=True, saveHistograms = True, sepCapID = True, SkipScan = False,histoList=range(96)):
 
 	print 'SepCap', sepCapID
 
-	if saveHistograms:
-		outputDirectory = "injector_card_{0}_DAC_{1}/Cal_range_{2}_mode/{3}/".format(injCardNumber, dacNumber, qieRange, str(date.today() ) )
+	if saveHistograms and not SkipScan:
+		if sepCapID:
+			outputDirectory = "injector_card_{0}_DAC_{1}/Cal_range_{2}_mode/{3}/".format(injCardNumber, dacNumber, qieRange, str(date.today() ) )
+		else:
+			outputDirectory = "injector_card_{0}_DAC_{1}/Cal_range_{2}_mode_NoSepCapID/{3}/".format(injCardNumber, dacNumber, qieRange, str(date.today() ) )
+
+		if not useCalibrationMode:
+			outputDirectory = outputDirectory.replace('/Cal_','/NoCal_')
+		if not useFixRange:
+			outputDirectory = outputDirectory.replace('_range_','_NotFixedRange_')
+
 		if not os.path.exists(outputDirectory):
 			os.system( "mkdir -pv "+outputDirectory )
 
+	if SkipScan:
+		if sepCapID:
+			outputDirectory = "injector_card_{0}_DAC_{1}/Cal_range_{2}_mode/".format( injCardNumber, dacNumber, qieRange )
+		else:
+			outputDirectory = "injector_card_{0}_DAC_{1}/Cal_range_{2}_mode_NoSepCapID/".format( injCardNumber, dacNumber, qieRange )
+		dirs = os.listdir(outputDirectory)
+		dirs.sort()
+		outputDirectory += dirs[-1]+'/'
+		print outputDirectory
 
 	if useFixRange:
 		set_fix_range_all(ts, 1, 2, True, int(qieRange))
+	else:
+		set_fix_range_all(ts, 1, 2, False)
 	if useCalibrationMode:
 		set_cal_mode_all(ts, 1, 2, True)
-
+	else:
+		set_cal_mode_all(ts, 1, 2, False)
 	if not SkipScan:
 		initLinks(ts)
 
@@ -145,12 +217,14 @@ def doScan(ts, injCardNumber = 1, dacNumber = 1, scanRange = range(30), qieRange
 				fName = uhtr.get_histo(ts,uhtr_slot=ts.uhtr_slots[0],n_orbits=4000, sepCapID=0, file_out=outputDirectory+histName)
 		else:
 			fName = outputDirectory+histName
-		vals = read_histo(fName,sepCapID,int(qieRange))
+#		vals = read_histo(fName,sepCapID,int(qieRange))
+		vals = read_histoTest(fName,sepCapID,int(qieRange),i,histoList)
 		results[i] = vals
-
-	setDAC(0)
-	set_fix_range_all(ts, 1, 2, False, int(qieRange))
-	set_cal_mode_all(ts, 1, 2, False)
+		
+	if not SkipScan:
+		setDAC(0)
+		set_fix_range_all(ts, 1, 2, False)
+		set_cal_mode_all(ts, 1, 2, False)
 	
 	return results
 
@@ -183,9 +257,9 @@ def main(options):
 
 	qieCardID = ['0x8d000000', '0xaa24da70']
 
-	results = doScan(ts, options.cardnumber, options.dacnumber, scanRange, options.range, options.useFixRange, options.useCalibrationMode, options.saveHistograms,sepCapID=sepCapID, SkipScan=options.SkipScan)
-
 	histoList = eval(options.histoList)
+
+	results = doScan(ts, options.cardnumber, options.dacnumber, scanRange, options.range, options.useFixRange, options.useCalibrationMode, options.saveHistograms,sepCapID=sepCapID, SkipScan=options.SkipScan, histoList = histoList)
 
 	qieParams = lite.connect("qieParameters.db")
 	cursor = qieParams.cursor()
@@ -197,34 +271,63 @@ def main(options):
 	qieID = "%s %s" %(qieCardID[0], qieCardID[1])
 
 	#Will need to find a way of updating the mapping between injection boards and qie boards
+	
+	if not options.useFixRange:
+		return
+
+	outFile = TFile('testOutGraphs.root','recreate')
 
 	if sepCapID:
 		graphs = makeADCvsfCgraphSepCapID(scanRange,results, histoList)
 
 		for ih in histoList:
-			for i_capID in range(4):
-				graph = graphs[ih][i_capID]
-				print ih, i_capID
-				print graph
-				qieNum = ih%24 + 1
-				params = doFit(graph,int(options.range), True, qieNum, qieID.replace(' ', '_'),i_capID)
+			for g in graphs[ih]:
+				print g
+				outFile.cd()
+				g.Write()
+			
+			qieNum = ih%24 + 1
+			params = doFit_combined(graphs[ih],int(options.range), True, qieNum, qieID.replace(' ', '_'), options.useCalibrationMode)
+			if not options.useCalibrationMode:
+				continue
 
-				values = (qieID, qieNum, i_capID, options.range, params[0], params[1])
+			for i_capID in range(4):
+				values = (qieID, qieNum, i_capID, options.range, params[i_capID][0], params[i_capID][1])
 				
 				cursor.execute("insert or replace into qieparams values (?, ?, ?, ?, ?, ?)",values)
+
+
+			# for i_capID in range(4):
+			# 	graph = graphs[ih][i_capID]
+			# 	print ih, i_capID
+			# 	qieNum = ih%24 + 1
+				
+			# 	params = doFit(graph,int(options.range), True, qieNum, qieID.replace(' ', '_'),i_capID, options.useCalibrationMode)
+
+			# 	if not options.useCalibrationMode:
+			# 		continue
+
+			# 	values = (qieID, qieNum, i_capID, options.range, params[0], params[1])
+				
+			# 	cursor.execute("insert or replace into qieparams values (?, ?, ?, ?, ?, ?)",values)
 				
 	else:
-		capID = -1
-		graphs = makeADCvsfCgraph(scanRange,results, histoList, sepCapID)
+		i_capID = -1
+		graphs = makeADCvsfCgraph(scanRange,results, histoList)
 
 		for ih in histoList:
 			graph = graphs[ih]
 			print ih
 			qieNum = ih%24 + 1
 
-			params = doFit(graph,int(options.range), True, qieNum, qieID.replace(' ', '_'))
+
+
+			params = doFit(graph,int(options.range), True, qieNum, qieID.replace(' ', '_'), capID = -1, useCalibrationMode = options.useCalibrationMode)
 			
-			cursor.execute("remove from qieparams where qieID=? and qieNum=? and i_capID=? and range=?",(qieID, qieNum, i_capID, options.range))
+			if not options.useCalibrationMode:
+				continue
+
+			cursor.execute("delete from qieparams where id=? and qie=? and capID=? and range=?",(qieID, qieNum, i_capID, options.range))
 			
 			values = (qieID, qieNum, i_capID, options.range, params[0], params[1])
 
