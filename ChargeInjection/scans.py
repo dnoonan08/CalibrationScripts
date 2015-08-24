@@ -4,10 +4,13 @@ DACscan_range1 = range(100,240, 5)+ range(240,500,10) + range(500,1000,20) + ran
 DACscan_range2 = range(1200,2100, 75)+range(2100,4200,150) + range(4200,9000,300) + range(9000,13000,500)
 DACscan_range3 = range(12000,45000,1000)
 
+DACscan_range0To1 = range(110,150)
+
 scans = { "0" : DACscan_range0 ,
           "1" : DACscan_range1 ,
           "2" : DACscan_range2 ,
           "3" : DACscan_range3 ,
+          "0to1": DACscan_range0To1 ,
 	  }
 
 DACscan_range0_5k = range(40) + range(40,130,2) + range(130,480,5)
