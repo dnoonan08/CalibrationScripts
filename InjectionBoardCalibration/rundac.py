@@ -31,7 +31,7 @@ doCheck = options.doCheck
 if not version == "":
 	version = "_v"+version
 
-outTextFileName = "/afs/cern.ch/user/d/dnoonan/HCAL_Testing/Calibration/calibration_output/calibration_output_card_%s_dac_%s_pigtail_%s%s.txt"%(card,dac,pigtail,version)
+outTextFileName = "/afs/cern.ch/user/d/dnoonan/HCAL_Testing/CalibrationScripts/InjectionBoardCalibration/calibration_output/calibration_output_card_%s_dac_%s_pigtail_%s%s.txt"%(card,dac,pigtail,version)
 
 if doCheck:
 	if os.path.exists(outTextFileName):
@@ -41,7 +41,7 @@ if doCheck:
 
 
 #hostname = '128.141.168.19'
-hostname = 'dnoonan@pb-d-128-141-168-45.cern.ch'
+hostname = 'dnoonan@pb-d-128-141-168-96.cern.ch'
 filename_dac_exe  = '/afs/cern.ch/user/d/dnoonan/HCAL_Testing/mcc-libhid/dacQinjector'
 filename_keithley = '/Users/dnoonan/Work/CMS/HCAL/CalibrationScripts/Keithley/run_Keithley.py'
 
@@ -53,6 +53,7 @@ logFullRange = [2**16-1] + [0]  + [2**x for x in range(16)]  + [2**x+2**(x-1) fo
 
 FullRange = range(0,130) + range(130,200,5) + range(200,1000,50) + range(1000,10000, 500) + range(10000, 45500, 5000)
 
+rangeToUse = FullRange
 
 def calibration(range):
 	for i in range:
@@ -75,7 +76,6 @@ def calibration_saveToTextFile(range,outFileName = 'calibration_output.txt'):
     		command = 'ssh {0} python {1} {2}'.format(hostname, filename_keithley, i)
 		while outFail != 0:
 			outFail = subprocess.call(command.split(), stdout=outFile)
-		
 
 def calibration_saveTGraph(range, outFileName = 'calibration_tgraph.root',cardNum = 0, pigtail = 0):
 	from ROOT import TGraphErrors, TFile
@@ -115,7 +115,7 @@ def calibration_saveTGraph(range, outFileName = 'calibration_tgraph.root',cardNu
 
 #calibration(R1)
 
-calibration_saveToTextFile(FullRange,outTextFileName)
+calibration_saveToTextFile(rangeToUse,outTextFileName)
 
 command = '{0} -o {1}'.format(filename_dac_exe, 0 )
 subprocess.call([command], shell=True)
