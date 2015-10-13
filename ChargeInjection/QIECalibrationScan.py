@@ -1,5 +1,5 @@
 from time import sleep
-from datetime import date
+from datetime import date, datetime
 import os
 from optparse import OptionParser
 import subprocess
@@ -9,6 +9,7 @@ from scans import *
 from adcTofC import *
 from fitGraphs import *
 from ROOT import *
+from DAC import *
 
 sys.path.insert(0, '../../hcal_teststand_scripts')
 
@@ -16,11 +17,19 @@ from hcal_teststand.uhtr import *
 from hcal_teststand import *
 from hcal_teststand.hcal_teststand import *
 from hcal_teststand.qie import *
+from checkLinks import *
+
 
 import sqlite3 as lite
 
+from RangeTransitionErrors import *
+
+orbitDelay = 3504
+GTXreset = 1
+CDRreset = 1
 ### Which slot number contains which injection card {slot:card}
-### slots are numbered 1 to 8 (slot 0 contains the DAC, slot 9 has an extra injection card)
+### slots are numbered 1 to 8 (slot 10 contains the DAC, slot 9 has an extra injection card)
+### The purpose of this dictionary is to allow for swapping out a nonfunctional card
 injectionCardSlotMapping = {1:1,
 			    2:2,
 			    3:3,
@@ -32,7 +41,7 @@ injectionCardSlotMapping = {1:1,
 			    9:9,
 			    }
 
-## Which histogram does DAC channel 13 fill on each injection board slot ( { histogram : injectionslot} )
+## Which histogram does DAC channel 00 fill on each injection board slot ( { histogram : injectionslot} )
 ## check this mapping with new injection card (inject one channel at a time, see which histogram is filled)
 
 dac13Mapping = { 1  : 2 ,
@@ -48,29 +57,26 @@ dac13Mapping = { 1  : 2 ,
 		 11 : 9 ,
 		 12 : 11,
 		 }
-			      
 
-def setDAC( dacLSB = 0, dacChannel = -1):
-	os.system("export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib; ~/../tiroy/mcc-libhid/dacQinjector  -o {0} -c {1}".format(dacLSB, dacChannel) )
+# def print_links(ts):
+# 	linksGood, linkOutput, problemLinks = checkLinkStatus(ts)
+# 	if not linksGood:
+# 		print linkOutput
+# 		print "Problem with Links:",problemLinks
+# 	else:
+# 		print 'Links Good'
 
 
-def initLinks(ts):
-	cmds = [
-		'0',
-		'link',
-		'init',
-		'1',
-		'92',
-		'0',
-		'0',
-		'0',
-		'quit',
-		'exit',
-		'-1'
-		]
-	output = uhtr.send_commands_script(ts, ts.uhtr_slots[0], cmds)
+def print_qie_range(ts, crate, slot):
+	commands = []
+	for i_qie in range(1, 25):
+#		commands.append("get HF{0}-{1}-QIE{2}_FixRange".format(crate, slot, i_qie))
+		commands.append("get HF{0}-{1}-QIE{2}_RangeSet".format(crate, slot, i_qie))
+	raw_output = ngccm.send_commands_parsed(ts, commands)['output']
+	for val in raw_output:
+		if 'RangeSet' in val['cmd']:
+			print val['cmd'], val['result']
 
-	sleep(2)
 
 
 
@@ -83,7 +89,7 @@ def read_histo(file_in="", sepCapID=True, qierange = 0):
 			for i_ch in range(4):
 				histNum = 4*i_link + i_ch
 				th = tf.Get("h{0}".format(histNum))
-				th.SetBinContent(1,0)
+#				th.SetBinContent(1,0)
 				info = {}
 				info["link"] = i_link
 				info["channel"] = i_ch
@@ -112,32 +118,33 @@ def read_histo(file_in="", sepCapID=True, qierange = 0):
 
 	return result
 		
-																																						
 
-
-def doScan(ts, injCardNumber = 1, dacNumber = 1, scanRange = range(30), qieRange=0, useFixRange=True, useCalibrationMode=True, saveHistograms = True, sepCapID = True, SkipScan = False, outputDirectory = ""):
+def doScan(ts, scanRange = range(30), qieRange=0, useFixRange=True, useCalibrationMode=True, sepCapID = True, SkipScan = False, outputDirectory = ""):
 
 	print 'SepCap', sepCapID
 
 	if useFixRange:
 		for i_crate in ts.fe_crates:
-			for ts.qie_slots[0]:
-		set_fix_range_all(ts, 1, 2, True, int(qieRange))
+			for i_slot in ts.qie_slots[0]:
+				print 'Set Fixed Range'
+				set_fix_range_all(ts, i_crate, i_slot, True, int(qieRange))
 	if useCalibrationMode:
+		print 'Set Calibration Mode'
 		set_cal_mode_all(ts, 1, 2, True)
 
-	if not SkipScan:
-		initLinks(ts)
+	sleep(3)
+	getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = 1, CDRreset = 1, forceInit=True)
 
 	results = {}
 	for i in scanRange:
+		print_links(ts)
 
 		histName = ""
-		if saveHistograms: histName = "Calibration_LSB_{0}.root".format( i )
+		histName = "Calibration_LSB_{0}.root".format( i )
 		if not SkipScan:
 			print 'LSB', i
 			setDAC(i)
-			sleep(5)
+#			getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = 1, CDRreset = 1)
 			if sepCapID:
 				fName = uhtr.get_histo(ts,uhtr_slot=ts.uhtr_slots[0],n_orbits=4000, sepCapID=1, file_out=outputDirectory+histName)
 			else:
@@ -146,15 +153,54 @@ def doScan(ts, injCardNumber = 1, dacNumber = 1, scanRange = range(30), qieRange
 			fName = outputDirectory+histName
 		vals = read_histo(fName,sepCapID,int(qieRange))
 		results[i] = vals
-		
+
+		print_links(ts)
 	if not SkipScan:
 		setDAC(0)
-		set_fix_range_all(ts, 1, 2, False, int(qieRange))
+		print 'Set Fixed Range Off'
+		set_fix_range_all(ts, 1, 2, False)
+		print 'Set Calibration Mode Off'
 		set_cal_mode_all(ts, 1, 2, False)
-	
+	getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = 1, CDRreset = 1, forceInit=True)
+
 	return results
 
-def mapInjectorToQIE(ts):
+def getSimpleLinkMap(ts, outputDirectory):
+	print 'Start Get Mapping'
+	linkMap = {}
+
+	setDAC(0)
+
+	print_links(ts)
+	for crate in ts.fe_crates:
+		for slot in ts.qie_slots[0]:
+			print slot
+			print crate
+			unique_ID_parsed = qie.get_unique_id(ts,crate,slot)
+			print unique_ID_parsed
+			unique_ID = "%s %s"%(unique_ID_parsed[0], unique_ID_parsed[1])
+			print 'Set Fixed Range'
+			set_fix_range_all(ts, crate, slot, True, 2)
+			sleep(3)
+#			print_qie_range(ts,crate,slot)
+			getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = 1, CDRreset = 1, forceInit=True)
+			print_links(ts)
+			fName = uhtr.get_histo(ts,uhtr_slot=ts.uhtr_slots[0],n_orbits=1000, sepCapID=0, file_out = outputDirectory+"mappingHist.root")
+			vals = read_histo(fName,False)
+			for i in range(0,96,4):
+				link = int(i/4)
+				if vals[i]['mean'] > 100:
+					linkMap[link] = unique_ID
+			print_links(ts)
+			print 'Set Fixed Range Off'
+			set_fix_range_all(ts, crate, slot, False)
+			getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = 1, CDRreset = 1, forceInit=True)
+
+	print 'Done with Getting Mapping'
+	return linkMap
+
+		
+def mapInjectorToQIE(ts, outputDirectory = ''):
 	"""
 	Finds the mapping of which injector card is connected to which QIE card (and which half)
 	
@@ -162,21 +208,55 @@ def mapInjectorToQIE(ts):
 	Injects a charge using DAC 13 which max out range 1	
 	"""
 
-	links = ts.get_links()
+	print 'get links'
+
+
+	##### CHANGE THIS
+	##### Test without injectors
+	# linkMap = {12:'0x8d000000 0xaa24da70',
+	# 	   13:'0x8d000000 0xaa24da70',
+	# 	   14:'0x8d000000 0xaa24da70',
+	# 	   15:'0x8d000000 0xaa24da70',
+	# 	   16:'0x8d000000 0xaa24da70',
+	# 	   17:'0x8d000000 0xaa24da70',
+	# 	   }
+	linkMap = getSimpleLinkMap(ts,outputDirectory)	
+	print 'got links'
+#	print linkMap
+
+	
+	print_links(ts)
+
+	for i_crate in ts.fe_crates:
+		for i_slot in ts.qie_slots[0]:
+			print 'Set Fixed Range'
+			set_fix_range_all(ts, i_crate, i_slot, True, 1)
+			sleep(3)
+			
+	print 'Set DAC, get hist'
+	setDAC(dacLSB = 10000, dacChannel = 0)
+	getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = 1, CDRreset = 1, forceInit=True)
+
+
+	print 'Read Histos'
+	fName = uhtr.get_histo(ts,uhtr_slot=ts.uhtr_slots[0],n_orbits=3000, sepCapID=0, file_out = outputDirectory+"mappingHist.root")
+	vals = read_histo(fName,False)
+
+	print_links(ts)
+
+	setDAC(dacLSB = 0)
 
 	for i_crate in ts.fe_crates:
 		for i_slots in ts.qie_slots[0]:
-			set_fix_range_all(ts, i_crate, i_slot, True, 1)
-
-	setDAC(dacLSB = 0)
-	sleep(5)
-	setDAC(dacLSB = 10000, dacChannel = 13)
-	sleep(5)
-	fName = uhtr.get_histo(ts,uhtr_slot=ts.uhtr_slots[0],n_orbits=4000, sepCapID=0, file_out = outputDirectory+"mappingHist.root")
-	vals = read_histo(fName,False)
+			print 'Set Fixed Range off'
+			set_fix_range_all(ts, i_crate, i_slot, False)
+	sleep(3)
+	getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = 1, CDRreset = 1, forceInit=True)
+	
+	print_links(ts)
 
 	mapping = {}
-	simpleMap = {}
+	simpleCardMap = {}
 	for i in vals:
 		# set to fixed range, not sep capID
 		# setting to fixed range 1, injecting at a range 3 value
@@ -186,138 +266,213 @@ def mapInjectorToQIE(ts):
 			filledQIE = histNum%12 + 1
 			injectionCardSlot = dac13Mapping[filledQIE]
 			link = vals[i]['link']
-			qieSlot = links[11][link].slot   #does this make sense????
+			if link%6 < 3: half = 'TOP'
+			else: half = 'BOTTOM'
 			mapping[injectionCardSlot] = {'link' : link,
-						      'id'   : links[11][link].qie_unique_id,
-						      'half' : links[11][link].qie_half,
-						      'slot' : qieSlot,
+						      'id'   : linkMap[link],
+						      'half' : half,
 						      'connector' : int(histNum/12)
 						      }
+			print int(histNum/12), injectionCardSlot
 			simpleCardMap[int(histNum/12)] = injectionCardSlotMapping[injectionCardSlot]
 
 			
-	for i_crate in ts.fe_crates:
-		for i_slots in ts.qie_slots[0]:
-			set_fix_range_all(ts, i_crate, i_slot, False)
+	print_links(ts)
 
 	return mapping, simpleCardMap
 
 
 
-def main(options):
-
+def QIECalibrationScan(options):
 	##load teststand 904, will this be the correcto configuration for 
 	ts = teststand("904")
-
 
 	## load qie parameters db
 	qieParams = lite.connect("qieParameters.db")
 	cursor = qieParams.cursor()
-	cursor.execute("create table if not exists qieparams(id STRING, qie INT, capID INT, range INT, slope REAL, offset REAL)")
+	cursor.execute("create table if not exists qieparams(id STRING, qie INT, capID INT, range INT, version INT, date STRING, slope REAL, offset REAL)")
 		
 	## take data separated by capID
 	sepCapID = options.sepCapID
 	print "Separate capID =",sepCapID
 
+	dacNum = getDACNumber()
 
 	## create directory structure:
 	## in the end, it will be /InjectionData/date/Run_XX/CalMode_FixedRangeY/
-	outputDirectory = "InjectionData/%s/"%( str(date.today()) )
+	outputDirectory = "Data_CalibrationScans/%s/"%( str(date.today()) )
+
 	if not os.path.exists(outputDirectory):
 		os.system( "mkdir -pv "+outputDirectory )
 		fileVersion = "Run_01/"
 	else:
-		files = os.listDir(outputDirectory)
+		files = os.listdir(outputDirectory)
 		files.sort()
 		lastNum = int(files[-1].split("_")[-1])
-		fileVersion = "Run_%02i/"%lastNum+1
+		fileVersion = "Run_%02i/"%(lastNum+1)
 	outputDirectory += fileVersion
 	os.system( "mkdir -pv "+outputDirectory )
-	
+
+
+	getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = 1, CDRreset = 1)
+	# print 'Check and Initialize Links'
+	# linksGood, linkOutput, problemLinks, problemType = checkLinkStatus(ts)
+	# print linkOutput
+	# if not linksGood:
+	# 	print "Problem with Links:",problemLinks
+	# if not linksGood and not options.NoLinkInit:
+	# 	getGoodLinks(ts, orbitDelay=orbitDelay)
+		
+	# linksGood, linkOutput, problemLinks, problemType = checkLinkStatus(ts)
+	# print linkOutput
+
+
+	print 'Start Mapping'
+
 
 	## run mapping of injection cards to qie cards
-	injectionMapping, simpleCardMap = mapInjectorToQIE(ts)
+
+	###CHANGE THIS
+	injectionMapping, simpleCardMap = mapInjectorToQIE(ts, outputDirectory)	
+
+	print injectionMapping
+	print simpleCardMap
+
+	print_links(ts)
+
+	histoList = []
+	
+	linkGroups = simpleCardMap.keys()
+	linkGroups.sort()
+	for i_link in linkGroups:
+		for ih in range(12):
+			histoList.append(ih+i_link*12)
+	print histoList
+		
+#	sys.exit()
 
 	## creates a 'cardData.txt' file in the output directory, containing the list of injection cards used, the mapping between 
 	dataFile = open(outputDirectory+"cardData.txt",'w')
-	line = "Injection Cards Used\n"
-	line += str(qieInjectionCardsUsed)+"\n\n"
 	
-	line += '\n\n'
+	line = '%s\n'%str(datetime.now())
 	for i_injCard in injectionMapping:
 		line += "Injection Card %i\n"%i_injCard
-		line += "  slot: %s\n"%injectionMapping[i_injCard]['slot']
-		line += "  id: %s\n"%injectionMapping[i_injCard]['id']
-		line += "  half: %s\n"%injectionMapping[i_injCard]['half']
+#		line += "  slot: %s\n"%injectionMapping[i_injCard]['slot']
+		line += "  Connected to QIE:\n"
+		line += "    id: %s\n"%injectionMapping[i_injCard]['id']
+		line += "    half: %s\n"%injectionMapping[i_injCard]['half']
+		connector = int(injectionMapping[i_injCard]['connector'])
+		line += "    links: %i%i%i"%(connector*3, connector*3+1, connector*3+2)
+		line += "    histss: %i-%i"%(connector*12, connector*12+11)
+	line += "DAC %s Used" %dacNum
 
 	dataFile.write(line)
 	dataFile.close()	
-	
+	minRange = 0
+	maxRange = 4
 
-	for qieRange in range(3):
+
+	if not int(options.range) == -1:
+		minRange = int(options.range)
+		maxRange = int(options.range)+1
+
+	outputParamFile = open(outputDirectory+"calibrationParams.txt",'w')
+
+
+	for qieRange in range(minRange, maxRange):
 	
-		scanRange = scans[qieRange]
+		scanRange = scans5k[qieRange]
 
 		print scanRange
 
 
-		if useCalibrationMode:
-			CalMode = "CaliMode"
+		getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = 1, CDRreset = 1)
+
+				
+		# status = linkStatus(ts)
+		# print status['output']
+
+
+		if options.useCalibrationMode:
+			CalMode = "CalibrationMode"
 		else:
-			CalMode = "NotCaliMode"
-		if useFixRange:
+			CalMode = "NormalMode"
+		if options.useFixRange:
 			rangeMode = "FixRange_%i"%qieRange
 		else:
 			rangeMode = "VariableRange"
 
-		outputDirectory += "%s_%s"%(CalMode,rangeMode)
-		os.system( "mkdir -pv "+outputDirectory )
+		rangeOutputDirectory = outputDirectory + "%s_%s/"%(CalMode,rangeMode)
+		os.system( "mkdir -pv "+rangeOutputDirectory )
 		
-		results = doScan(ts, options.cardnumber, options.dacnumber, scanRange, options.range, options.useFixRange, options.useCalibrationMode, options.saveHistograms,sepCapID=sepCapID, SkipScan=options.SkipScan)
+		results = doScan(ts, scanRange, qieRange, options.useFixRange, options.useCalibrationMode, sepCapID=sepCapID, SkipScan=options.SkipScan, outputDirectory = rangeOutputDirectory)
 
-		histoList = range(96)
+		# histoList = range(96)
+		# histoList = range(48,72)
+
+		outputTGraphs = TFile(rangeOutputDirectory+"/adcVSfc_graphs.root","recreate")
+
+		if options.SkipFit: continue
 
 		if sepCapID:
-			graphs = makeADCvsfCgraphSepCapID(scanRange,results, histoList, mapping = simpleCardMap)
-
+			graphs = makeADCvsfCgraphSepCapID(scanRange,results, histoList, cardMap = simpleCardMap, dac=dacNum)
+			
 			for ih in histoList:
+				qieID = injectionMapping[simpleCardMap[int(ih/12)]]['id']
+				qieNum = ih%24 + 1
+				outputTGraphs.cd()
+				params = doFit_combined(graphs[ih],int(qieRange), True, qieNum, qieID.replace(' ', '_'),options.useCalibrationMode, rangeOutputDirectory)
 				for i_capID in range(4):
-					graph = graphs[ih][i_capID]
-					print ih, i_capID
-					print graph
-					qieNum = ih%24 + 1
-					params = doFit(graph,int(options.range), True, qieNum, qieID.replace(' ', '_'),i_capID)
+					graphs[ih][i_capID].Write()
+					values = (qieID, qieNum, i_capID, qieRange, params[i_capID][0], params[i_capID][1])
+					versions = cursor.execute("select version from  qieparams where id=? and qie=? and capID=? and range=?",values).fetchall()
+					if len(versions)==0:
+						verion = 1
+					else:
+						version = versions.sort()[-1] + 1
+
+					values = (qieID, qieNum, i_capID, qieRange, version, str(datetime.now()), params[i_capID][0], params[i_capID][1])
 					
-					values = (qieID, qieNum, i_capID, options.range, params[0], params[1])
-					
-					cursor.execute("insert or replace into qieparams values (?, ?, ?, ?, ?, ?)",values)
-				
+					cursor.execute("insert into qieparams values (?, ?, ?, ?, ?, ?, ? , ?)",values)
+
+					outputParamFile.write(str(values)+'\n')
 		else:
 			capID = -1
-			graphs = makeADCvsfCgraph(scanRange,results, histoList, sepCapID, mapping = simpleCardMap)
+			graphs = makeADCvsfCgraph(scanRange,results, histoList, sepCapID, cardMap = simpleCardMap, dac=dacNum)
 
 			for ih in histoList:
 				graph = graphs[ih]
 				print ih
 				qieNum = ih%24 + 1
 				
-				params = doFit(graph,int(options.range), True, qieNum, qieID.replace(' ', '_'))
+				params = doFit(graph,int(qieRange), True, qieNum, qieID.replace(' ', '_'))
 				
-				cursor.execute("remove from qieparams where qieID=? and qieNum=? and i_capID=? and range=?",(qieID, qieNum, i_capID, options.range))
+				cursor.execute("remove from qieparams where id=? and qie=? and capID=? and range=?",(qieID, qieNum, i_capID, qieRange))
 				
-				values = (qieID, qieNum, i_capID, options.range, params[0], params[1])
+				values = (qieID, qieNum, i_capID, qieRange, params[0], params[1])
 				
 				cursor.execute("insert into qieparams values (?, ?, ?, ?, ?, ?)",values)
+
+		outputTGraphs.Close()
 
 	cursor.close()
 	qieParams.commit()
 	qieParams.close()
+	outputParamFile.close()
+
+	### Graph parameters
+
+	### Range Transition Errors
+
+	if options.RunRangeTransitionScan:
+		
+		runTransitionErrorScans(outDir = 'testDir', transitionRanges = [0,1,2], mapping = simpleCardMap)
 
 		
 if __name__ == "__main__":
 	parser = OptionParser()
-	parser.add_option("-d", "--dac", dest="dacnumber", default="2" ,
-			  help="DAC used" )
+	parser.add_option("-r", "--range", dest="range", default=-1,type='int',
+			  help="Specify range to be used in scan (default is -1, which does all 4 ranges)" )
 	parser.add_option("--nofixed", action="store_false", dest="useFixRange", default=True ,
 			  help="do not use fixed range mode")
 	parser.add_option("--nocalmode", action="store_false", dest="useCalibrationMode", default=True ,
@@ -326,7 +481,18 @@ if __name__ == "__main__":
 			  help="don't separate the different capID histograms")
 	parser.add_option("--SkipScan", action="store_true",dest="SkipScan",default=False,
 			  help="Skip the scan, using presaved scan")
+	parser.add_option("--SkipFit", action="store_true",dest="SkipFit",default=False,
+			  help="Skip the fitting step")
+	parser.add_option("--NoLinkInit", action="store_true",dest="NoLinkInit",default=False,
+			  help="Skip the scan, using presaved scan")
+	parser.add_option("--SkipRangeTransition", action="store_false",dest="RunRangeTransitionScan",default=True,
+			  help="Skip the range transition scans")
 
 	(options, args) = parser.parse_args()
-	
-	main(options)
+
+	if not options.range == -1:
+		options.RunRangeTransitionScan=False
+
+	QIECalibrationScan(options)
+
+

@@ -1,11 +1,32 @@
 from ROOT import *
 import sys
 import numpy
-
+from array import array
 import os
 
 gROOT.SetBatch()
-ROOT.gStyle.SetCanvasColor(0)
+ROOT.gStyle.SetCanvasColor(kWhite)
+gStyle.SetStatStyle(kWhite)
+gStyle.SetTitleStyle(kWhite)
+
+graphOffset = [100,500,2000,8000]
+
+def invertFunction(x,y,p0,p1, vOffset):
+        if x - vOffset < 16:
+            m = p0
+            b = p1
+        elif x - vOffset < 36:
+            m = 2*p0
+            b = - p0*(16+vOffset) + p1
+        elif x - vOffset < 57:
+            m = 4*p0
+            b = -2*p0*(vOffset+36) - p0*(16+vOffset) + p1
+        elif x - vOffset < 63:
+            m = 8*p0
+            b = -4*p0*(vOffset+57) -2*p0*(vOffset+36) - p0*(16+vOffset) + p1
+	else:
+		return 0
+        return (y-b)/m
 
 
 def fit_graph(graph, qieRange, vOffset):
@@ -33,19 +54,19 @@ def fit_graph(graph, qieRange, vOffset):
     min_x = xVals_list[0]
 #    print min_x, max_x
     
-
-    print 1+vOffset, 62+vOffset
-    print max(1,min_x+1)+vOffset,min(max_x-1,62)+vOffset
-    combined = TF1("fullrange",subrangeFit_continuous,max(1,min_x+1)+vOffset,min(max_x-1,62)+vOffset,2)
+    print max(1+vOffset,min_x+1),min(max_x-1,62+vOffset)
+    
+    combined = TF1("fullrange",subrangeFit_continuous,max(1+vOffset,min_x+1),min(max_x-1,62+vOffset),2)
     combined.SetParameters(1,-1)
     combined.SetLineWidth(0)
     graph.Fit(combined,"N","",1+vOffset,62+vOffset)
 
     return combined
 
+
 lineColors = [kRed, kBlue, kGreen+2, kCyan] 
 
-def doFit_combined(graphs, qieRange, saveGraph = False, qieNumber = 0, qieUniqueID = "", useCalibrationMode = True):
+def doFit_combined(graphs, qieRange, saveGraph = False, qieNumber = 0, qieUniqueID = "", useCalibrationMode = True, outputDir = ''):
 
     fitLines = []
     for i_capID in range(4):
@@ -54,14 +75,18 @@ def doFit_combined(graphs, qieRange, saveGraph = False, qieNumber = 0, qieUnique
         fitLines.append(fitLine)
         if saveGraph:
             qieInfo = ""
-            saveName = "plots/"
+	    
+            saveName = outputDir
+	    if saveName[-1]!='/':
+		    saveName += '/'
+	    saveName += "plots/"
             if qieUniqueID != "": 
                 qieInfo += ", Card ID "+qieUniqueID
             else:
                 qieUniqueID = "UnknownID"
-            if not os.path.exists("plots/%s"%qieUniqueID):
-                os.system("mkdir plots/%s"%qieUniqueID)
             saveName += qieUniqueID
+            if not os.path.exists(saveName):
+                os.system("mkdir -p %s"%saveName)
             saveName += "/ADCvsfC"
             if qieNumber != 0: 
                 qieInfo += ", QIE " + str(qieNumber)
@@ -70,13 +95,72 @@ def doFit_combined(graphs, qieRange, saveGraph = False, qieNumber = 0, qieUnique
             saveName += "_capID"+str(i_capID)
             saveName += "_range"+str(qieRange)
             if not useCalibrationMode: saveName += "_NotCalMode"
-            saveName += ".png"
+            saveName += ".pdf"
             graph.SetTitle("ADC vs Charge, Range %i%s" % (qieRange,qieInfo))
             graph.GetYaxis().SetTitle("Charge (fC)")
             graph.GetYaxis().SetTitleOffset(1.2)
             graph.GetXaxis().SetTitle("ADC")
 
+            xVals = graph.GetX()
+            exVals = graph.GetEX()
+            yVals = graph.GetY()
+            eyVals = graph.GetEY()
+            residuals = []
+            residualErrors = []
+            residualsY = []
+            residualErrorsY = []
+            eUp = []
+            eDown = []
+            N = graph.GetN()
+            x = []
+            y = []
+
+            for i in range(N):
+                if yVals[i] != 0:
+                    residuals.append((yVals[i]-fitLine.Eval(xVals[i]))/yVals[i])
+                    xLow = (xVals[i]-exVals[i])
+                    xHigh = (xVals[i]+exVals[i])
+                    eUp.append((yVals[i]-fitLine(xLow))/yVals[i])
+                    eDown.append((yVals[i]-fitLine(xLow))/yVals[i])
+                    residualErrors.append(eyVals[i]/yVals[i])
+                    x.append(xVals[i])
+
+                if xVals[i] != 0:
+                    xFit = invertFunction(xVals[i], yVals[i],fitLine.GetParameter(0),fitLine.GetParameter(1), qieRange*64)
+#		    print xFit, xVals[i], yVals[i],fitLine.GetParameter(0),fitLine.GetParameter(1), qieRange*64
+                    residualsY.append((xVals[i]-xFit)/xVals[i])
+                    residualErrorsY.append(exVals[i]/xVals[i])
+                    y.append(yVals[i])
+            
+            resArray = array('d',residuals)
+            resErrArray = array('d',residualErrors)
+            resErrUpArray = array('d',eUp)
+            resErrDownArray = array('d',eDown)
+            resArrayY = array('d',residualsY)
+            resErrArrayY = array('d',residualErrorsY)
+            xArray = array('d',x)
+            xErrorsArray = array('d',[0]*len(x))
+            yArray = array('d',y)
+            yErrorsArray = array('d',[0]*len(y))
+
+            residualGraphX = TGraphErrors(len(x),xArray,resArray, xErrorsArray, resErrArray)
+#            residualGraphX = TGraphAsymmErrors(len(x),xArray,resArray, xErrorsArray, xErrorsArray, resErrDownArray, resErrUpArray)
+            residualGraphY = TGraphErrors(len(y),resArrayY, yArray, resErrArrayY, yErrorsArray)
+
+            residualGraphX.SetTitle("")
             c1 = TCanvas()
+            p1 = TPad("","",0,.2,.8,1)
+            p2 = TPad("","",0,0,.8,.2)
+            p3 = TPad("","",.8,0,1,1)
+            p1.Draw()
+            p2.Draw()
+            p3.Draw()
+            p1.SetFillColor(kWhite)
+            p2.SetFillColor(kWhite)
+            p3.SetFillColor(kWhite)
+            p1.cd()
+            p1.SetBottomMargin(0)
+            p1.SetRightMargin(0)
             graph.Draw("ap")
             fitLine.SetLineColor(kRed)
             fitLine.SetLineWidth(2)
@@ -86,13 +170,7 @@ def doFit_combined(graphs, qieRange, saveGraph = False, qieNumber = 0, qieUnique
             xmax = graph.GetXaxis().GetXmax()
             ymin = graph.GetYaxis().GetXmin()
             ymax = graph.GetYaxis().GetXmax()
-            xmin = xmin-10
-            xmax = 74
 
-            graph.GetXaxis().SetRangeUser(-10,(1+qieRange)*64+10)
-            graph.GetYaxis().SetRangeUser(ymin*.9,ymax*1.1)
-
-        
             text = TPaveText(xmin + (xmax-xmin)*.2, ymax - (ymax-ymin)*(.3),xmin + (xmax-xmin)*.6,ymax-(ymax-ymin)*.1)
             text.SetFillColor(kWhite)
             text.SetFillStyle(4000)
@@ -100,12 +178,79 @@ def doFit_combined(graphs, qieRange, saveGraph = False, qieNumber = 0, qieUnique
             text.AddText("Offset =  %.2f +- %.2f fC" % (fitLine.GetParameter(1), fitLine.GetParError(1)))
             text.Draw("same")
 
+
+            p2.cd()
+            p2.SetTopMargin(0)
+            p2.SetRightMargin(0)
+            p2.SetBottomMargin(0.35)
+            residualGraphX.Draw("ap")
+            zeroLine = TLine(fitLine.GetMinimumX(), 0,fitLine.GetMaximumX(),0)
+            zeroLine.Draw("same")
+
+            p3.cd()
+	    p3.SetTopMargin(0.8*p3.GetTopMargin() )
+            p3.SetLeftMargin(0)
+            p3.SetBottomMargin(0.2)
+            residualGraphY.Draw("ap")
+            zeroLineY = TLine(0,ymin,0,ymax)
+            zeroLineY.Draw("same")
+
+
+            residualGraphX.GetXaxis().SetLabelSize(0.15)
+            residualGraphX.GetYaxis().SetLabelSize(0.15)
+            residualGraphX.GetYaxis().SetTitle("Residuals")
+            residualGraphX.GetXaxis().SetTitle("ADC")
+            residualGraphX.GetXaxis().SetTitleSize(0.15)
+            residualGraphX.GetYaxis().SetTitleSize(0.15)
+            residualGraphX.GetYaxis().SetTitleOffset(0.33)
+
+            residualGraphY.GetXaxis().SetTitle("Residuals")
+            residualGraphY.GetXaxis().SetLabelSize(0.1)
+            residualGraphY.GetYaxis().SetLabelSize(0.1)
+            residualGraphY.GetXaxis().SetTitleSize(0.1)
+
+            residualGraphY.GetXaxis().SetTitleOffset(0.3)
+            residualGraphY.GetXaxis().SetLabelOffset(-0.05)
+
+
+            residualGraphX.GetYaxis().CenterTitle()
+            residualGraphY.GetXaxis().CenterTitle()
+	   
+
+            # xmin = xmin-10
+            # xmax = xmax+10
+
+#            graph.GetXaxis().SetLimits(xmin-10,xmax+10)
+            graph.GetXaxis().SetLimits(qieRange*64-10,(1+qieRange)*64+10)
+            graph.GetYaxis().SetLimits(ymin*.9,ymax*1.1)
+
+            residualGraphX.GetXaxis().SetLimits(qieRange*64-10,(1+qieRange)*64+10)
+            residualGraphX.GetYaxis().SetRangeUser(-0.03,0.03)
+            residualGraphX.SetMarkerStyle(7)
+            residualGraphX.GetYaxis().SetNdivisions(3,5,0)
+
+            residualGraphY.GetXaxis().SetLimits(-0.03,0.03)
+            residualGraphY.GetYaxis().SetLimits(ymin*.9, ymax*1.1)
+	    residualGraphY.SetMarkerStyle(7)
+            residualGraphY.GetXaxis().SetNdivisions(3,5,0)
+	    residualGraphY.SetTitle("")
+
+
+
+            print xmin, xmax
+
+            p1.cd()
+
             c1.SaveAs(saveName)
+
+    params = []
+    for i in range(4):
+        params.append(fitLines[i].GetParameters())
 
     if saveGraph:
         saveName = saveName.replace("_capID"+str(i_capID),"")
         c1 = TCanvas()
-        for i_capID in range(4):
+	for i_capID in range(4):
             graph = graphs[i_capID]
             fitLine = fitLines[i_capID]
 #            graph.SetMarkerStyle(20+i_capID)
@@ -114,20 +259,20 @@ def doFit_combined(graphs, qieRange, saveGraph = False, qieNumber = 0, qieUnique
             if i_capID==0:
                 graph.Draw("ap")
                 graph.SetTitle("ADC vs Charge, Range %i, %s, QIE %i" % (qieRange,qieUniqueID,qieNumber))
+                graph.GetYaxis().SetRangeUser(ymin-graphOffset[qieRange],graph.GetYaxis().GetXmax()+graphOffset[qieRange]*4)
             else:
                 N_ = graph.GetN()
                 x_ = graph.GetX()
                 y_ = graph.GetY()
                 for i in range(N_):
-                    graph.SetPoint(i,x_[i],y_[i]+(500*i_capID))
+                    graph.SetPoint(i,x_[i],y_[i]+(graphOffset[qieRange]*i_capID))
                 graph.Draw("p, same")
-                fitLine.SetParameter(1,fitLine.GetParameter(1)+(500*i_capID))
+                fitLine.SetParameter(1,fitLine.GetParameter(1)+(graphOffset[qieRange]*i_capID))
             fitLine.Draw("same")
         c1.SaveAs(saveName)
+        for i_capID in range(4):
+	    fitLine.SetParameter(1,fitLine.GetParameter(1)+(graphOffset[qieRange]*i_capID))
 
-    params = []
-    for i in range(4):
-        params.append(fitLines[i].GetParameters())
     return params
 
 
@@ -222,7 +367,7 @@ def doFit(graph, qieRange, saveGraph = False, qieNumber = 0, qieUniqueID = "", c
             saveName += "_capID"+str(capID)
         saveName += "_range"+str(qieRange)
         if not useCalibrationMode: saveName += "_NotCalMode"
-        saveName += ".png"
+        saveName += ".pdf"
         graph.SetTitle("ADC vs Charge, Range %i%s" % (qieRange,qieInfo))
         graph.GetYaxis().SetTitle("Charge (fC)")
         graph.GetYaxis().SetTitleOffset(1.2)

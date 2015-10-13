@@ -105,17 +105,17 @@ import csv
 
 #     return con
 
-nominalMapping = { 1 : 2,
-                   2 : 3,
+nominalMapping = { 1 : 4,
+                   2 : 4,
                    3 : 4,
-                   4 : 5,
+                   4 : 4,
                    5 : 1,
-                   6 : 6,
-                   7 : 7,
-                   8 : 8,
+                   6 : 2,
+                   7 : 4,
+                   8 : 4,
                    }
 
-def makeADCvsfCgraph(lsbList, values, histo_list = range(0,96), cardMap = nominalMapping):
+def makeADCvsfCgraph(lsbList, values, histo_list = range(0,96), cardMap = nominalMapping, dac='01'):
 
 #    conCardMap = createDB_HFcard(True)
 #    conSlopes = createDB_fromCSV("InjectionBoardCalibration/SlopesOffsets_card1.csv", True)
@@ -147,8 +147,8 @@ def makeADCvsfCgraph(lsbList, values, histo_list = range(0,96), cardMap = nomina
 
         for i_lsb in lsbList:
 
-            query = ( pigtail, card, i_lsb, i_lsb)
-            cur_Slopes.execute('SELECT offset, slope FROM CARDCAL WHERE pigtail=? AND card=? AND rangehigh>=? AND rangelow<=?', query )
+            query = ( pigtail, card, dac, i_lsb, i_lsb)
+            cur_Slopes.execute('SELECT offset, slope FROM CARDCAL WHERE pigtail=? AND card=? AND dac=? AND rangehigh>=? AND rangelow<=?', query )
             result_t = cur_Slopes.fetchone()
             print query
             print result_t
@@ -180,7 +180,7 @@ def makeADCvsfCgraph(lsbList, values, histo_list = range(0,96), cardMap = nomina
     return graphs
 
 
-def makeADCvsfCgraphSepCapID(lsbList, values, histo_list = range(0,96), cardMap = nominalMapping):
+def makeADCvsfCgraphSepCapID(lsbList, values, histo_list = range(0,96), cardMap = nominalMapping, dac='01'):
 #    conCardMap = createDB_HFcard(True)
 
     conSlopes = lite.connect("../InjectionBoardCalibration/SlopesOffsets.db")
@@ -204,6 +204,8 @@ def makeADCvsfCgraphSepCapID(lsbList, values, histo_list = range(0,96), cardMap 
 
         pigtail = 2 * (ih % 12 + 1)
 
+        if int(ih/12) not in cardMap.keys(): continue
+
         card = cardMap[int(ih/12)]
 
         # print "Card:    "+str(card)
@@ -219,8 +221,8 @@ def makeADCvsfCgraphSepCapID(lsbList, values, histo_list = range(0,96), cardMap 
         for i_lsb in lsbList:
         
 
-            query = ( pigtail, card, i_lsb, i_lsb)
-            cur_Slopes.execute('SELECT offset, slope FROM CARDCAL WHERE pigtail=? AND card=? AND rangehigh>=? AND rangelow<=?', query )
+            query = ( pigtail, card, dac, i_lsb, i_lsb)
+            cur_Slopes.execute('SELECT offset, slope FROM CARDCAL WHERE pigtail=? AND card=? AND dac=? AND rangehigh>=? AND rangelow<=?', query )
             result_t = cur_Slopes.fetchone()
             # print query
             # print result_t

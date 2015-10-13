@@ -55,7 +55,7 @@ def initLinks(ts):
 		'link',
 		'init',
 		'1',
-		'92',
+		'3499',
 		'0',
 		'0',
 		'0',
@@ -74,7 +74,7 @@ from linearizeHists import *
 
 newOutTest = TFile("testingNew.root",'recreate')
 
-def read_histoTest(file_in="", sepCapID=True, qieRange = 0,lsb=0,histoList = range(96)):
+def read_histoLinearized(file_in="", sepCapID=True, qieRange = 0,lsb=0,histoList = range(96)):
 	result = {}
 	tf = TFile(file_in, "READ")
 	tc = TCanvas("tc", "tc", 500, 500)
@@ -142,7 +142,6 @@ def read_histo(file_in="", sepCapID=True, qieRange = 0):
 					info["mean"].append(th.GetMean() - offset + qieRange*64)
 					info["meanerr"].append(th.GetMeanError())
 					info["rms"].append(th.GetRMS())
-					#                               info["stddev"] = th.GetStdDev()
 				result.append(info)
 		
 	else:
@@ -155,14 +154,13 @@ def read_histo(file_in="", sepCapID=True, qieRange = 0):
 				info["mean"] = th.GetMean()
 				info["meanerr"] = th.GetMeanError()
 				info["rms"] = th.GetRMS()
-				#                               info["stddev"] = th.GetStdDev()
 				result.append(info)
 	return result
 		
 																																						
 
 
-def doScan(ts, injCardNumber = 1, dacNumber = 1, scanRange = range(30), qieRange=0, useFixRange=True, useCalibrationMode=True, saveHistograms = True, sepCapID = True, SkipScan = False,histoList=range(96)):
+def doScan(ts, injCardNumber = 1, dacNumber = 1, scanRange = range(30), qieRange=0, useFixRange=True, useCalibrationMode=True, saveHistograms = True, sepCapID = True, SkipScan = False,histoList=range(96), testDir = False):
 
 	print 'SepCap', sepCapID
 
@@ -190,6 +188,9 @@ def doScan(ts, injCardNumber = 1, dacNumber = 1, scanRange = range(30), qieRange
 		outputDirectory += dirs[-1]+'/'
 		print outputDirectory
 
+	if testDir:
+		outputDirectory = 'TestDir/'
+
 	if useFixRange:
 		set_fix_range_all(ts, 1, 2, True, int(qieRange))
 	else:
@@ -210,15 +211,15 @@ def doScan(ts, injCardNumber = 1, dacNumber = 1, scanRange = range(30), qieRange
 			print 'LSB', i
 			setDAC(i)
 			# setup("{0}".format(options.scan))
-			sleep(5)
+			sleep(3)
 			if sepCapID:
 				fName = uhtr.get_histo(ts,uhtr_slot=ts.uhtr_slots[0],n_orbits=4000, sepCapID=1, file_out=outputDirectory+histName)
 			else:
 				fName = uhtr.get_histo(ts,uhtr_slot=ts.uhtr_slots[0],n_orbits=4000, sepCapID=0, file_out=outputDirectory+histName)
 		else:
 			fName = outputDirectory+histName
-#		vals = read_histo(fName,sepCapID,int(qieRange))
-		vals = read_histoTest(fName,sepCapID,int(qieRange),i,histoList)
+		vals = read_histo(fName,sepCapID,int(qieRange))
+#		vals = read_histoLinearized(fName,sepCapID,int(qieRange),i,histoList)
 		results[i] = vals
 		
 	if not SkipScan:
@@ -232,7 +233,7 @@ def doScan(ts, injCardNumber = 1, dacNumber = 1, scanRange = range(30), qieRange
 def main(options):
 	ts = teststand("904")
 
-	scanRange = scans[options.range]
+	scanRange = scans5k[options.range]
 	if not options.scan == []:
 		scanRange = eval(options.scan)
 
@@ -285,7 +286,10 @@ def main(options):
 				print g
 				outFile.cd()
 				g.Write()
-			
+
+			if options.SkipFit:
+				continue
+
 			qieNum = ih%24 + 1
 			params = doFit_combined(graphs[ih],int(options.range), True, qieNum, qieID.replace(' ', '_'), options.useCalibrationMode)
 			if not options.useCalibrationMode:
@@ -352,14 +356,18 @@ if __name__ == "__main__":
 			  help="do not use fixed range mode")
 	parser.add_option("--nocalmode", action="store_false", dest="useCalibrationMode", default=True ,
 			  help="do not use calibration mode" )
-	parser.add_option("--save","--savehistos",action="store_true",dest="saveHistograms", default=False,
+	parser.add_option("--notsave","--notsavehistos",action="store_false",dest="saveHistograms", default=True,
 			  help="save the histogram output files")
-	parser.add_option("--histoList", dest="histoList",default='range(96)',
+	parser.add_option("--histoList", dest="histoList",default='range(48,72)',
 			  help="choose histogram range to look at")
 	parser.add_option("--NoSepCapID", action="store_false",dest="sepCapID",default=True,
 			  help="don't separate the different capID histograms")
 	parser.add_option("--SkipScan", action="store_true",dest="SkipScan",default=False,
 			  help="Skip the scan, using presaved scan")
+	parser.add_option("--SkipFit", action="store_true",dest="SkipFit",default=False,
+			  help="Skip the parameter fit")
+	parser.add_option("--Test", action="store_true",dest="testDir",default=False,
+			  help="Store output in TestDir")
 
 	(options, args) = parser.parse_args()
 	
