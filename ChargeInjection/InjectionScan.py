@@ -262,7 +262,7 @@ def main(options):
 
 	results = doScan(ts, options.cardnumber, options.dacnumber, scanRange, options.range, options.useFixRange, options.useCalibrationMode, options.saveHistograms,sepCapID=sepCapID, SkipScan=options.SkipScan, histoList = histoList)
 
-	qieParams = lite.connect("qieParameters.db")
+	qieParams = lite.connect("qieCalibrationParameters.db")
 	cursor = qieParams.cursor()
 
 	cursor.execute("create table if not exists qieparams(id STRING, qie INT, capID INT, range INT, slope REAL, offset REAL)")

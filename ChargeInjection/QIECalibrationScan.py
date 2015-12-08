@@ -19,12 +19,18 @@ from hcal_teststand.hcal_teststand import *
 from hcal_teststand.qie import *
 from checkLinks import *
 
+from GraphParamDist import *
 
 import sqlite3 as lite
 
 from RangeTransitionErrors import *
+from TDC_scan import *
+#from read_histo import *
 
-orbitDelay = 3504
+gROOT.SetBatch(kTRUE)
+
+
+orbitDelay = 34
 GTXreset = 1
 CDRreset = 1
 ### Which slot number contains which injection card {slot:card}
@@ -80,11 +86,12 @@ def print_qie_range(ts, crate, slot):
 
 
 
-def read_histo(file_in="", sepCapID=True, qierange = 0):
+def read_histo(file_in="", sepCapID=True, qieRange = 0):
 	result = {}
 	tf = TFile(file_in, "READ")
 	tc = TCanvas("tc", "tc", 500, 500)
 	if sepCapID:
+		rangeADCoffset = qieRange*64.
 		for i_link in range(24):
 			for i_ch in range(4):
 				histNum = 4*i_link + i_ch
@@ -98,8 +105,8 @@ def read_histo(file_in="", sepCapID=True, qierange = 0):
 				for i_capID in range(4):
 					offset = 64*(i_capID)
 					th.GetXaxis().SetRangeUser(offset, offset+63)
-					info["mean"].append(th.GetMean()-offset)
-					info["rms"].append(th.GetRMS())
+					info["mean"].append(th.GetMean()-offset+rangeADCoffset)
+					info["rms"].append(max(th.GetRMS(), 0.01))
 
 				result[histNum] = info
 		
@@ -116,6 +123,7 @@ def read_histo(file_in="", sepCapID=True, qierange = 0):
 
 				result[histNum] = info
 
+	tf.Close()
 	return result
 		
 
@@ -129,38 +137,50 @@ def doScan(ts, scanRange = range(30), qieRange=0, useFixRange=True, useCalibrati
 				print 'Set Fixed Range'
 				set_fix_range_all(ts, i_crate, i_slot, True, int(qieRange))
 	if useCalibrationMode:
-		print 'Set Calibration Mode'
-		set_cal_mode_all(ts, 1, 2, True)
+		for i_crate in ts.fe_crates:
+			for i_slot in ts.qie_slots[0]:
+				print 'Set Calibration Mode'
+				set_cal_mode_all(ts, i_crate, i_slot, True)
 
 	sleep(3)
 	getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = 1, CDRreset = 1, forceInit=True)
 
 	results = {}
 	for i in scanRange:
-		print_links(ts)
+#		print_links(ts)
 
 		histName = ""
 		histName = "Calibration_LSB_{0}.root".format( i )
 		if not SkipScan:
 			print 'LSB', i
 			setDAC(i)
-#			getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = 1, CDRreset = 1)
-			if sepCapID:
-				fName = uhtr.get_histo(ts,uhtr_slot=ts.uhtr_slots[0],n_orbits=4000, sepCapID=1, file_out=outputDirectory+histName)
-			else:
-				fName = uhtr.get_histo(ts,uhtr_slot=ts.uhtr_slots[0],n_orbits=4000, sepCapID=0, file_out=outputDirectory+histName)
+			getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = 1, CDRreset = 1)
+			print 'GettingHist'
+			fName = outputDirectory+histName
+			attempts = 0
+
+			while not os.path.exists(fName):
+				if attempts > 10:
+					continue
+				if sepCapID:
+					fName = uhtr.get_histo(ts,uhtr_slot=ts.uhtr_slots[0],n_orbits=4000, sepCapID=1, file_out=outputDirectory+histName)
+				else:
+					fName = uhtr.get_histo(ts,uhtr_slot=ts.uhtr_slots[0],n_orbits=4000, sepCapID=0, file_out=outputDirectory+histName)
 		else:
 			fName = outputDirectory+histName
+		print 'ReadingHist'
 		vals = read_histo(fName,sepCapID,int(qieRange))
 		results[i] = vals
 
-		print_links(ts)
+#		print_links(ts)
 	if not SkipScan:
 		setDAC(0)
-		print 'Set Fixed Range Off'
-		set_fix_range_all(ts, 1, 2, False)
-		print 'Set Calibration Mode Off'
-		set_cal_mode_all(ts, 1, 2, False)
+		for i_crate in ts.fe_crates:
+			for i_slot in ts.qie_slots[0]:
+				print 'Set Fixed Range Off'
+				set_fix_range_all(ts, i_crate, i_slot, False)
+				print 'Set Calibration Mode Off'
+				set_cal_mode_all(ts, i_crate, i_slot, False)
 	getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = 1, CDRreset = 1, forceInit=True)
 
 	return results
@@ -184,7 +204,7 @@ def getSimpleLinkMap(ts, outputDirectory):
 			sleep(3)
 #			print_qie_range(ts,crate,slot)
 			getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = 1, CDRreset = 1, forceInit=True)
-			print_links(ts)
+#			print_links(ts)
 			fName = uhtr.get_histo(ts,uhtr_slot=ts.uhtr_slots[0],n_orbits=1000, sepCapID=0, file_out = outputDirectory+"mappingHist.root")
 			vals = read_histo(fName,False)
 			for i in range(0,96,4):
@@ -200,7 +220,7 @@ def getSimpleLinkMap(ts, outputDirectory):
 	return linkMap
 
 		
-def mapInjectorToQIE(ts, outputDirectory = ''):
+def mapInjectorToQIE(ts, linkMap, outputDirectory = ''):
 	"""
 	Finds the mapping of which injector card is connected to which QIE card (and which half)
 	
@@ -220,12 +240,9 @@ def mapInjectorToQIE(ts, outputDirectory = ''):
 	# 	   16:'0x8d000000 0xaa24da70',
 	# 	   17:'0x8d000000 0xaa24da70',
 	# 	   }
-	linkMap = getSimpleLinkMap(ts,outputDirectory)	
-	print 'got links'
-#	print linkMap
 
 	
-	print_links(ts)
+#	print_links(ts)
 
 	for i_crate in ts.fe_crates:
 		for i_slot in ts.qie_slots[0]:
@@ -242,7 +259,7 @@ def mapInjectorToQIE(ts, outputDirectory = ''):
 	fName = uhtr.get_histo(ts,uhtr_slot=ts.uhtr_slots[0],n_orbits=3000, sepCapID=0, file_out = outputDirectory+"mappingHist.root")
 	vals = read_histo(fName,False)
 
-	print_links(ts)
+#	print_links(ts)
 
 	setDAC(dacLSB = 0)
 
@@ -253,7 +270,7 @@ def mapInjectorToQIE(ts, outputDirectory = ''):
 	sleep(3)
 	getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = 1, CDRreset = 1, forceInit=True)
 	
-	print_links(ts)
+#	print_links(ts)
 
 	mapping = {}
 	simpleCardMap = {}
@@ -277,20 +294,13 @@ def mapInjectorToQIE(ts, outputDirectory = ''):
 			simpleCardMap[int(histNum/12)] = injectionCardSlotMapping[injectionCardSlot]
 
 			
-	print_links(ts)
+#	print_links(ts)
 
 	return mapping, simpleCardMap
-
-
 
 def QIECalibrationScan(options):
 	##load teststand 904, will this be the correcto configuration for 
 	ts = teststand("904")
-
-	## load qie parameters db
-	qieParams = lite.connect("qieParameters.db")
-	cursor = qieParams.cursor()
-	cursor.execute("create table if not exists qieparams(id STRING, qie INT, capID INT, range INT, version INT, date STRING, slope REAL, offset REAL)")
 		
 	## take data separated by capID
 	sepCapID = options.sepCapID
@@ -306,25 +316,26 @@ def QIECalibrationScan(options):
 		os.system( "mkdir -pv "+outputDirectory )
 		fileVersion = "Run_01/"
 	else:
-		files = os.listdir(outputDirectory)
+		tempfiles = os.listdir(outputDirectory)
+		files = []
+		for fName in tempfiles:
+			if not 'Run_' in fName: continue
+			if '.tgz' in fName: continue
+			files.append(fName)
 		files.sort()
 		lastNum = int(files[-1].split("_")[-1])
 		fileVersion = "Run_%02i/"%(lastNum+1)
 	outputDirectory += fileVersion
 	os.system( "mkdir -pv "+outputDirectory )
 
+	## load qie parameters db
+	qieParams = lite.connect("qieCalibrationParameters.db")
+	cursor = qieParams.cursor()
+	cursor.execute("create table if not exists qieparams(id STRING, qie INT, capID INT, range INT, directoryname STRING, date STRING, slope REAL, offset REAL)")
 
-	getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = 1, CDRreset = 1)
-	# print 'Check and Initialize Links'
-	# linksGood, linkOutput, problemLinks, problemType = checkLinkStatus(ts)
-	# print linkOutput
-	# if not linksGood:
-	# 	print "Problem with Links:",problemLinks
-	# if not linksGood and not options.NoLinkInit:
-	# 	getGoodLinks(ts, orbitDelay=orbitDelay)
-		
-	# linksGood, linkOutput, problemLinks, problemType = checkLinkStatus(ts)
-	# print linkOutput
+	qieParamsLocal = lite.connect(outputDirectory+"qieCalibrationParameters.db")
+	cursorLocal = qieParamsLocal.cursor()
+	cursorLocal.execute("create table if not exists qieparams(id STRING, qie INT, capID INT, range INT, directoryname STRING, date STRING, slope REAL, offset REAL)")
 
 
 	print 'Start Mapping'
@@ -332,29 +343,54 @@ def QIECalibrationScan(options):
 
 	## run mapping of injection cards to qie cards
 
+	linkMap = getSimpleLinkMap(ts,outputDirectory)	
+	print 'got links'
+	print linkMap
+
 	###CHANGE THIS
-	injectionMapping, simpleCardMap = mapInjectorToQIE(ts, outputDirectory)	
+	injectionMapping, simpleCardMap = mapInjectorToQIE(ts, linkMap, outputDirectory)	
 
 	print injectionMapping
 	print simpleCardMap
 
 	print_links(ts)
 
-	histoList = []
+	### Get list of histograms (QIE channels) from injeciton mapping
+	histoList1 = []
 	
+	linkList = linkMap.keys()
+	linkList.sort()
+	for i_link in linkList:
+		for ih in range(4):
+			histoList1.append(ih+i_link*4)
+
+	histoList2 = []
+
 	linkGroups = simpleCardMap.keys()
 	linkGroups.sort()
 	for i_link in linkGroups:
 		for ih in range(12):
-			histoList.append(ih+i_link*12)
+			histoList2.append(ih+i_link*12)
+
+	histoList = list(set(histoList1) & set(histoList2))
+
 	print histoList
-		
+
 #	sys.exit()
+
+	minRange = 0
+	maxRange = 4
+
+	if not int(options.range) == -1:
+		minRange = int(options.range)
+		maxRange = int(options.range)+1		
+
 
 	## creates a 'cardData.txt' file in the output directory, containing the list of injection cards used, the mapping between 
 	dataFile = open(outputDirectory+"cardData.txt",'w')
 	
 	line = '%s\n'%str(datetime.now())
+	line += "DAC %s Used\n\n" %dacNum
 	for i_injCard in injectionMapping:
 		line += "Injection Card %i\n"%i_injCard
 #		line += "  slot: %s\n"%injectionMapping[i_injCard]['slot']
@@ -362,19 +398,27 @@ def QIECalibrationScan(options):
 		line += "    id: %s\n"%injectionMapping[i_injCard]['id']
 		line += "    half: %s\n"%injectionMapping[i_injCard]['half']
 		connector = int(injectionMapping[i_injCard]['connector'])
-		line += "    links: %i%i%i"%(connector*3, connector*3+1, connector*3+2)
-		line += "    histss: %i-%i"%(connector*12, connector*12+11)
-	line += "DAC %s Used" %dacNum
+		line += "    links: %i%i%i\n"%(connector*3, connector*3+1, connector*3+2)
+		line += "    histss: %i-%i\n"%(connector*12, connector*12+11)
 
+	line += '*'*80 + '\n'
+	line += 'Parameters that can be pulled for redoing the fit \n'
+	line += '*'*80 + '\n'
+
+	line += 'simpleCardMap '
+	line += str(simpleCardMap)
+	line += '\n'
+	line += 'injectionMapping '
+	line += str(injectionMapping)
+	line += '\n'
+	line += 'minRange '
+	line += str(minRange)
+	line += '\n'
+	line += 'maxRange '
+	line += str(maxRange)
+	line += '\n'
 	dataFile.write(line)
 	dataFile.close()	
-	minRange = 0
-	maxRange = 4
-
-
-	if not int(options.range) == -1:
-		minRange = int(options.range)
-		maxRange = int(options.range)+1
 
 	outputParamFile = open(outputDirectory+"calibrationParams.txt",'w')
 
@@ -418,22 +462,27 @@ def QIECalibrationScan(options):
 			graphs = makeADCvsfCgraphSepCapID(scanRange,results, histoList, cardMap = simpleCardMap, dac=dacNum)
 			
 			for ih in histoList:
+				for i_capID in range(4):
+					graphs[ih][i_capID].Write()
 				qieID = injectionMapping[simpleCardMap[int(ih/12)]]['id']
 				qieNum = ih%24 + 1
 				outputTGraphs.cd()
 				params = doFit_combined(graphs[ih],int(qieRange), True, qieNum, qieID.replace(' ', '_'),options.useCalibrationMode, rangeOutputDirectory)
 				for i_capID in range(4):
-					graphs[ih][i_capID].Write()
-					values = (qieID, qieNum, i_capID, qieRange, params[i_capID][0], params[i_capID][1])
-					versions = cursor.execute("select version from  qieparams where id=? and qie=? and capID=? and range=?",values).fetchall()
-					if len(versions)==0:
-						verion = 1
-					else:
-						version = versions.sort()[-1] + 1
 
-					values = (qieID, qieNum, i_capID, qieRange, version, str(datetime.now()), params[i_capID][0], params[i_capID][1])
+					# values = (qieID, qieNum, i_capID, qieRange)
+					# versions = cursor.execute("select version from  qieparams where id=? and qie=? and capID=? and range=?",values).fetchall()
+					# if len(versions)==0:
+					# 	version = 1
+					# else:
+					# 	version = versions.sort()[-1] + 1
+
+					# values = (qieID, qieNum, i_capID, qieRange, version, str(datetime.now()), params[i_capID][0], params[i_capID][1])
+
+					values = (qieID, qieNum, i_capID, qieRange, outputDirectory, str(datetime.now()), params[i_capID][0], params[i_capID][1])
 					
 					cursor.execute("insert into qieparams values (?, ?, ?, ?, ?, ?, ? , ?)",values)
+					cursorLocal.execute("insert into qieparams values (?, ?, ?, ?, ?, ?, ? , ?)",values)
 
 					outputParamFile.write(str(values)+'\n')
 		else:
@@ -456,18 +505,49 @@ def QIECalibrationScan(options):
 		outputTGraphs.Close()
 
 	cursor.close()
+	cursorLocal.close()
 	qieParams.commit()
 	qieParams.close()
+	qieParamsLocal.commit()
+	qieParamsLocal.close()
 	outputParamFile.close()
+	
+	graphParamDist(outputDirectory+"qieCalibrationParameters.db")
 
 	### Graph parameters
 
 	### Range Transition Errors
 
-	if options.RunRangeTransitionScan:
+	
+	qieTestParamsLocal = lite.connect(outputDirectory+"qieTestParameters.db")
+	cursorLocal = qieTestParamsLocal.cursor()
+	cursorLocal.execute("create table if not exists qietestparams(id STRING, qie INT, type1_r0 REAL, type2_r0 REAL, type1_r1 REAL, type2_r1 REAL, type3_r1 REAL, type1_r2 REAL, type2_r2 REAL, tdcstart REAL)") 
+	if options.RunExtraTests:
 		
-		runTransitionErrorScans(outDir = 'testDir', transitionRanges = [0,1,2], mapping = simpleCardMap)
+		errorRate = runTransitionErrorScans(outDir = outputDirectory, transitionRanges = [0,1,2], mapping = simpleCardMap, orbitDelay=orbitDelay)
+		tdc_start_current = runTDCScan(mapping=simpleCardMap, dac=dacNum, orbitDelay=orbitDelay, outputDir = outputDirectory)
 
+		for ih in histoList:
+			type1_r0 = errorRate[0][ih][1][0]
+			type2_r0 = errorRate[0][ih][2][0]
+			type1_r1 = errorRate[1][ih][1][0]
+			type2_r1 = errorRate[1][ih][2][0]
+			type3_r1 = errorRate[1][ih][3][0]
+			type1_r2 = errorRate[2][ih][1][0]
+			type2_r2 = errorRate[2][ih][2][0]
+
+			tdcstart = tdc_start_current[ih]
+
+			qieID = injectionMapping[simpleCardMap[int(ih/12)]]['id']
+			qieNum = ih%24 + 1
+
+			values = (qieID, qieNum, type1_r0, type2_r0, type1_r1, type2_r1, type2_r1, type1_r2, type2_r2, tdcstart)
+			
+			cursorLocal.execute("insert into qietestparams values (?, ?, ?, ?, ?, ?, ? , ?, ?, ?)",values)
+
+	cursorLocal.close()
+	qieTestParamsLocal.commit()
+	qieTestParamsLocal.close()
 		
 if __name__ == "__main__":
 	parser = OptionParser()
@@ -487,11 +567,18 @@ if __name__ == "__main__":
 			  help="Skip the scan, using presaved scan")
 	parser.add_option("--SkipRangeTransition", action="store_false",dest="RunRangeTransitionScan",default=True,
 			  help="Skip the range transition scans")
+	parser.add_option("--SkipTDC", action="store_false",dest="RunTDCScan",default=True,
+			  help="Skip the TDC scans")
+	parser.add_option("--SkipExtraTests", action="store_false",dest="RunExtraTests",default=True,
+			  help="Skip the Range Transistion and TDC tests")
 
 	(options, args) = parser.parse_args()
 
 	if not options.range == -1:
 		options.RunRangeTransitionScan=False
+		options.RunTDCScan=False
+	if not options.RunRangeTransitionScan or not options.RunTDCScan:
+		options.RunExtraTests = False
 
 	QIECalibrationScan(options)
 

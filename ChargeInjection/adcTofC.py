@@ -9,7 +9,7 @@ import string
 import sqlite3 as lite
 import csv
 
-
+gROOT.SetBatch(kTRUE)
 # def createDB_HFcard(verbose=False):
 
 #     # card, pigtail, channel, histo

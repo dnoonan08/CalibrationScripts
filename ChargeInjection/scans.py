@@ -23,14 +23,14 @@ scans = { "0" : DACscan_range0 ,
 DACscan_range0_5k = range(20,130,2) + range(130,550,5)
 DACscan_range1_5k = range(350,700, 10)+ range(700,1500,20) + range(1500,4300,40)
 DACscan_range2_5k = range(3400,6100, 75)+range(6100,12300,150) + range(12300,35000,300)
-DACscan_range3_5k = range(28000,45000,1000)
+DACscan_range3_5k = range(28000,48000,500)
 
-# DACscan_range0_5k = range(0,560,50)
-# DACscan_range1_5k = range(400,1000,100) + range(1000,4100,1000)
-# DACscan_range2_5k = range(3500,30000,2000)
-# DACscan_range3_5k = range(28000,49000,4000)
+# DACscan_range0_5k = range(0,560,20)
+# DACscan_range1_5k = range(400, 4500,700)
+# DACscan_range2_5k = range(3500,30000,5000)
+# DACscan_range3_5k = range(28000,49000,5000)
 
-# DACscan_range0_5k = [60,300]
+#DACscan_range0_5k = [60,300]
 # DACscan_range1_5k = [500,3250]
 # DACscan_range2_5k = [4000,15000]
 # DACscan_range3_5k = [35000,48000]

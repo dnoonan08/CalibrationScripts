@@ -1,7 +1,12 @@
 from sqlite3 import *
 from datetime import *
 
-qieParams = connect('qieParameters.db')
+# from barCodeMap import barCodeMap
+
+# def getBarCode(uniqueID):
+#     ibarCodeMap
+
+qieParams = connect('qieCalibrationParameters.db')
 
 cursor = qieParams.cursor()
 
@@ -24,6 +29,7 @@ for qieID in QIE_ID_list:
     outputline =  '<PART mode="auto">\n'
     outputline += '        <KIND_OF_PART>HCAL QIE10 Card</KIND_OF_PART>\n'
     outputline += '        <BARCODE>%s</BARCODE>\n'
+    
     outputline += '        <COMMENT_DESCRIPTION>QIE10-ADC Relationship</COMMENT_DESCRIPTION>\n'
     outputline += '    <CHILDREN>\n'
     for i_qie in range(24):
