@@ -30,7 +30,7 @@ from TDC_scan import *
 gROOT.SetBatch(kTRUE)
 
 
-orbitDelay = 34
+orbitDelay = 30
 GTXreset = 1
 CDRreset = 1
 ### Which slot number contains which injection card {slot:card}
@@ -64,19 +64,10 @@ dac13Mapping = { 1  : 2 ,
 		 12 : 11,
 		 }
 
-# def print_links(ts):
-# 	linksGood, linkOutput, problemLinks = checkLinkStatus(ts)
-# 	if not linksGood:
-# 		print linkOutput
-# 		print "Problem with Links:",problemLinks
-# 	else:
-# 		print 'Links Good'
-
 
 def print_qie_range(ts, crate, slot):
 	commands = []
 	for i_qie in range(1, 25):
-#		commands.append("get HF{0}-{1}-QIE{2}_FixRange".format(crate, slot, i_qie))
 		commands.append("get HF{0}-{1}-QIE{2}_RangeSet".format(crate, slot, i_qie))
 	raw_output = ngccm.send_commands_parsed(ts, commands)['output']
 	for val in raw_output:
@@ -126,6 +117,8 @@ def read_histo(file_in="", sepCapID=True, qieRange = 0):
 	tf.Close()
 	return result
 		
+#Scans over a number of DAC settings, getting the uHTR histogram and read out the mean and RMS for each scan point
+#Returns a dictionary with the ADC values at each DAC LSB
 
 def doScan(ts, scanRange = range(30), qieRange=0, useFixRange=True, useCalibrationMode=True, sepCapID = True, SkipScan = False, outputDirectory = ""):
 
@@ -185,14 +178,18 @@ def doScan(ts, scanRange = range(30), qieRange=0, useFixRange=True, useCalibrati
 
 	return results
 
+
+#Provides the mapping of card slot to uHTR link
+#Sets the QIE card in one slot to fixed range mode in range 2, injects charge equivalent to ADC 0, and looks for which links read 128 (bottom of range 2)
 def getSimpleLinkMap(ts, outputDirectory):
+
 	print 'Start Get Mapping'
 	linkMap = {}
 
 	setDAC(0)
 
 	print_links(ts)
-	for crate in ts.fe_crates:
+ 	for crate in ts.fe_crates:
 		for slot in ts.qie_slots[0]:
 			print slot
 			print crate
@@ -202,9 +199,11 @@ def getSimpleLinkMap(ts, outputDirectory):
 			print 'Set Fixed Range'
 			set_fix_range_all(ts, crate, slot, True, 2)
 			sleep(3)
-#			print_qie_range(ts,crate,slot)
+			# This is here just to test in case where it is thought the card may not be getting set to fixed range
+			#print_qie_range(ts,crate,slot)
+
 			getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = 1, CDRreset = 1, forceInit=True)
-#			print_links(ts)
+
 			fName = uhtr.get_histo(ts,uhtr_slot=ts.uhtr_slots[0],n_orbits=1000, sepCapID=0, file_out = outputDirectory+"mappingHist.root")
 			vals = read_histo(fName,False)
 			for i in range(0,96,4):
@@ -229,20 +228,6 @@ def mapInjectorToQIE(ts, linkMap, outputDirectory = ''):
 	"""
 
 	print 'get links'
-
-
-	##### CHANGE THIS
-	##### Test without injectors
-	# linkMap = {12:'0x8d000000 0xaa24da70',
-	# 	   13:'0x8d000000 0xaa24da70',
-	# 	   14:'0x8d000000 0xaa24da70',
-	# 	   15:'0x8d000000 0xaa24da70',
-	# 	   16:'0x8d000000 0xaa24da70',
-	# 	   17:'0x8d000000 0xaa24da70',
-	# 	   }
-
-	
-#	print_links(ts)
 
 	for i_crate in ts.fe_crates:
 		for i_slot in ts.qie_slots[0]:

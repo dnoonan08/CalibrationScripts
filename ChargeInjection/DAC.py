@@ -5,7 +5,7 @@ from time import sleep
 
 def setDAC( dacLSB = 0, dacChannel = -1):
 	os.system("export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib; ~/../tiroy/mcc-libhid/dacQinjector  -o {0} -c {1}".format(dacLSB, dacChannel) )
-#	sleep(3)
+	sleep(2)
 
 
 def getDACNumber():
