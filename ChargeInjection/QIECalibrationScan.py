@@ -5,6 +5,8 @@ from optparse import OptionParser
 import subprocess
 import sys
 
+from numpy import std
+
 from scans import *
 from adcTofC import *
 from fitGraphs import *
@@ -30,9 +32,9 @@ from TDC_scan import *
 gROOT.SetBatch(kTRUE)
 
 
-orbitDelay = 30
-GTXreset = 1
-CDRreset = 1
+orbitDelay = 34
+GTXreset = 0
+CDRreset = 0
 ### Which slot number contains which injection card {slot:card}
 ### slots are numbered 1 to 8 (slot 10 contains the DAC, slot 9 has an extra injection card)
 ### The purpose of this dictionary is to allow for swapping out a nonfunctional card
@@ -74,7 +76,84 @@ def print_qie_range(ts, crate, slot):
 		if 'RangeSet' in val['cmd']:
 			print val['cmd'], val['result']
 
+def print_qie_status(ts, crate, slot):
+	commands = []
+	commands.append("get HF{0}-{1}-QIE[1-24]_FixRange".format(crate,slot))
+	commands.append("get HF{0}-{1}-QIE[1-24]_RangeSet".format(crate,slot))
+	commands.append("get HF{0}-{1}-QIE[1-24]_CalMode".format(crate,slot))
+	raw_output = ngccm.send_commands_parsed(ts, commands)['output']	
+	for val in raw_output:
+		for setting in ['RangeSet','FixRange','CalMode']:
+			if setting in val['cmd']:
+				print setting, val['cmd'], val['result']
 
+
+# from checkQIEStatus import *	
+
+def check_qie_status(ts, crate, slot):
+	commands = []
+	commands.append("get HF{0}-{1}-QIE[1-24]_FixRange".format(crate,slot))
+	commands.append("get HF{0}-{1}-QIE[1-24]_RangeSet".format(crate,slot))
+	commands.append("get HF{0}-{1}-QIE[1-24]_CalMode".format(crate,slot))
+	raw_output = ngccm.send_commands_parsed(ts, commands)['output']	
+
+	results = {}
+	goodValues = True
+	problems = []
+	for val in raw_output:
+		for setting in ['RangeSet','FixRange','CalMode']:
+			if setting in val['cmd']:
+				results[val['cmd']] = val['result']
+			values = [float(x) for x in val['result'].split()]
+			if not std(values)==0:
+				goodValues = False
+				problems.append([val['cmd'],val['result']])
+	
+	return goodValues, results, problems
+
+
+def getGoodQIESetting(ts,fe_crates, qie_slots, qieRange=0, useFixRange= False, useCalibrationMode = False):
+
+	for i_crate in fe_crates:
+		for i_slot in qie_slots:
+			print 'Set Fixed Range and Calibration mode Crate %i Slot %i' %(i_crate,i_slot)
+			set_fix_range_all(ts, i_crate, i_slot, useFixRange, int(qieRange))
+			set_cal_mode_all(ts, i_crate, i_slot, useCalibrationMode)
+	goodStatus = True
+	problemSlots = []
+	sleep(3)
+	for i_crate in fe_crates:
+		for i_slot in qie_slots:
+			qieGood, result, problems = check_qie_status(ts, i_crate, i_slot)
+			if not qieGood:
+				goodStatus = False
+				problemSlots.append( (i_crate, i_slot) )
+				print problems
+	attempts = 0
+	while not goodStatus and attempts < 10:
+		goodStatus = True
+		newProblemSlots = []
+		for i_crate, i_slot in problemSlots:
+			print 'Retry Set Fixed Range and Calibration mode Crate %i Slot %i' %(i_crate,i_slot)
+			set_fix_range_all(ts, i_crate, i_slot, useFixRange, int(qieRange))
+			set_cal_mode_all(ts, i_crate, i_slot, useCalibrationMode)
+			sleep(3)
+			qieGood, result,problems = check_qie_status(ts, i_crate, i_slot)
+			if not qieGood:
+				goodStatus = False
+				newProblemSlots.append( (i_crate, i_slot) )
+				print problems
+			else:
+				for reg in result:
+					print reg, result[reg]
+			
+		attempts += 1
+		problemSlots = newProblemSlots
+
+	if not goodStatus:
+		print "Can't get good QIE status"
+		print "Exiting"
+		sys.exit()
 
 
 def read_histo(file_in="", sepCapID=True, qieRange = 0):
@@ -124,19 +203,31 @@ def doScan(ts, scanRange = range(30), qieRange=0, useFixRange=True, useCalibrati
 
 	print 'SepCap', sepCapID
 
-	if useFixRange:
-		for i_crate in ts.fe_crates:
-			for i_slot in ts.qie_slots[0]:
-				print 'Set Fixed Range'
-				set_fix_range_all(ts, i_crate, i_slot, True, int(qieRange))
-	if useCalibrationMode:
-		for i_crate in ts.fe_crates:
-			for i_slot in ts.qie_slots[0]:
-				print 'Set Calibration Mode'
-				set_cal_mode_all(ts, i_crate, i_slot, True)
+	getGoodQIESetting(ts, ts.fe_crates, ts.qie_slots[0], int(qieRange), useFixRange=True, useCalibrationMode=True)
 
-	sleep(3)
-	getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = 1, CDRreset = 1, forceInit=True)
+
+	# if useFixRange:
+	# 	for i_crate in ts.fe_crates:
+	# 		for i_slot in ts.qie_slots[0]:
+	# 			print 'Set Fixed Range Crate %i Slot %i' %(i_crate,i_slot)
+	# 			set_fix_range_all(ts, i_crate, i_slot, True, int(qieRange))
+	# if useCalibrationMode:
+	# 	for i_crate in ts.fe_crates:
+	# 		for i_slot in ts.qie_slots[0]:
+	# 			print 'Set Calibration Mode Crage %i Slot %i' %(i_crate,i_slot)
+	# 			set_cal_mode_all(ts, i_crate, i_slot, True)
+
+	# sleep(3)
+
+
+	# for i_crate in ts.fe_crates:
+	# 	for i_slot in ts.qie_slots[0]:
+	# 		print '-'*20
+	# 		print 'Crate %i Slot %i Status'%(i_crate,i_slot)
+	# 		goodStatus, result = check_qie_status(ts,i_crate,i_slot)
+			
+			
+	getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = GTXreset, CDRreset = CDRreset, forceInit=True)
 
 	results = {}
 	for i in scanRange:
@@ -147,7 +238,7 @@ def doScan(ts, scanRange = range(30), qieRange=0, useFixRange=True, useCalibrati
 		if not SkipScan:
 			print 'LSB', i
 			setDAC(i)
-			getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = 1, CDRreset = 1)
+			getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = GTXreset, CDRreset = CDRreset)
 			print 'GettingHist'
 			fName = outputDirectory+histName
 			attempts = 0
@@ -168,13 +259,22 @@ def doScan(ts, scanRange = range(30), qieRange=0, useFixRange=True, useCalibrati
 #		print_links(ts)
 	if not SkipScan:
 		setDAC(0)
-		for i_crate in ts.fe_crates:
-			for i_slot in ts.qie_slots[0]:
-				print 'Set Fixed Range Off'
-				set_fix_range_all(ts, i_crate, i_slot, False)
-				print 'Set Calibration Mode Off'
-				set_cal_mode_all(ts, i_crate, i_slot, False)
-	getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = 1, CDRreset = 1, forceInit=True)
+		getGoodQIESetting(ts, ts.fe_crates, ts.qie_slots[0], int(qieRange), useFixRange=False, useCalibrationMode=False)
+
+		# for i_crate in ts.fe_crates:
+		# 	for i_slot in ts.qie_slots[0]:
+		# 		print 'Set Fixed Range Off'
+		# 		set_fix_range_all(ts, i_crate, i_slot, False)
+		# 		print 'Set Calibration Mode Off'
+		# 		set_cal_mode_all(ts, i_crate, i_slot, False)
+	getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = GTXreset, CDRreset = CDRreset, forceInit=True)
+
+	for i_crate in ts.fe_crates:
+		for i_slot in ts.qie_slots[0]:
+			print '-'*20
+			print 'Crate %i Slot %i Status'%(i_crate,i_slot)
+			print_qie_status(ts,i_crate,i_slot)
+
 
 	return results
 
@@ -197,12 +297,14 @@ def getSimpleLinkMap(ts, outputDirectory):
 			print unique_ID_parsed
 			unique_ID = "%s %s"%(unique_ID_parsed[0], unique_ID_parsed[1])
 			print 'Set Fixed Range'
-			set_fix_range_all(ts, crate, slot, True, 2)
+			getGoodQIESetting(ts, [crate], [slot], 2, useFixRange=True, useCalibrationMode=False)
+#			set_fix_range_all(ts, crate, slot, True, 2)
+
 			sleep(3)
 			# This is here just to test in case where it is thought the card may not be getting set to fixed range
 			#print_qie_range(ts,crate,slot)
 
-			getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = 1, CDRreset = 1, forceInit=True)
+			getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = GTXreset, CDRreset = GTXreset, forceInit=True)
 
 			fName = uhtr.get_histo(ts,uhtr_slot=ts.uhtr_slots[0],n_orbits=1000, sepCapID=0, file_out = outputDirectory+"mappingHist.root")
 			vals = read_histo(fName,False)
@@ -212,8 +314,9 @@ def getSimpleLinkMap(ts, outputDirectory):
 					linkMap[link] = unique_ID
 			print_links(ts)
 			print 'Set Fixed Range Off'
-			set_fix_range_all(ts, crate, slot, False)
-			getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = 1, CDRreset = 1, forceInit=True)
+			getGoodQIESetting(ts, [crate], [slot], 2, useFixRange=False, useCalibrationMode=False)
+#			set_fix_range_all(ts, crate, slot, False)
+			getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = GTXreset, CDRreset = CDRreset, forceInit=True)
 
 	print 'Done with Getting Mapping'
 	return linkMap
@@ -229,15 +332,17 @@ def mapInjectorToQIE(ts, linkMap, outputDirectory = ''):
 
 	print 'get links'
 
-	for i_crate in ts.fe_crates:
-		for i_slot in ts.qie_slots[0]:
-			print 'Set Fixed Range'
-			set_fix_range_all(ts, i_crate, i_slot, True, 1)
-			sleep(3)
+	getGoodQIESetting(ts, ts.fe_crates, ts.qie_slots[0], 1, useFixRange=True, useCalibrationMode=False)
+
+	# for i_crate in ts.fe_crates:
+	# 	for i_slot in ts.qie_slots[0]:
+	# 		print 'Set Fixed Range'
+	# 		set_fix_range_all(ts, i_crate, i_slot, True, 1)
+	# 		sleep(3)
 			
 	print 'Set DAC, get hist'
 	setDAC(dacLSB = 10000, dacChannel = 0)
-	getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = 1, CDRreset = 1, forceInit=True)
+	getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = GTXreset, CDRreset = CDRreset, forceInit=True)
 
 
 	print 'Read Histos'
@@ -248,12 +353,13 @@ def mapInjectorToQIE(ts, linkMap, outputDirectory = ''):
 
 	setDAC(dacLSB = 0)
 
-	for i_crate in ts.fe_crates:
-		for i_slots in ts.qie_slots[0]:
-			print 'Set Fixed Range off'
-			set_fix_range_all(ts, i_crate, i_slot, False)
-	sleep(3)
-	getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = 1, CDRreset = 1, forceInit=True)
+	getGoodQIESetting(ts, ts.fe_crates, ts.qie_slots[0], 1, useFixRange=False, useCalibrationMode=False)
+	# for i_crate in ts.fe_crates:
+	# 	for i_slots in ts.qie_slots[0]:
+	# 		print 'Set Fixed Range off'
+	# 		set_fix_range_all(ts, i_crate, i_slot, False)
+	# sleep(3)
+	getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = GTXreset, CDRreset = CDRreset, forceInit=True)
 	
 #	print_links(ts)
 
@@ -415,7 +521,7 @@ def QIECalibrationScan(options):
 		print scanRange
 
 
-		getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = 1, CDRreset = 1)
+		getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = GTXreset, CDRreset = CDRreset)
 
 				
 		# status = linkStatus(ts)
