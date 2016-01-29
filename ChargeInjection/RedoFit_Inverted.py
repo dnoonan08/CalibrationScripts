@@ -9,21 +9,21 @@ from scans import *
 from adcTofC_v2 import *
 from fitGraphs_v2 import *
 from ROOT import *
-from DAC import *
+#from DAC import *
 
-sys.path.insert(0, '../../hcal_teststand_scripts')
+# sys.path.insert(0, '../../hcal_teststand_scripts')
 
-from hcal_teststand.uhtr import *
-from hcal_teststand import *
-from hcal_teststand.hcal_teststand import *
-from hcal_teststand.qie import *
-from checkLinks import *
+# from hcal_teststand.uhtr import *
+# from hcal_teststand import *
+# from hcal_teststand.hcal_teststand import *
+# from hcal_teststand.qie import *
+# from checkLinks import *
 
 from GraphParamDist import *
 
 import sqlite3 as lite
 
-from RangeTransitionErrors import *
+# from RangeTransitionErrors import *
 
 orbitDelay = 3507
 GTXreset = 1
@@ -256,6 +256,8 @@ def getValuesFromFile(outputDir):
 
 	dataFile = open(outputDir+"/cardData.txt",'r')
 	for line in dataFile:
+		if 'DAC' in line and 'Used' in line:
+			dacNumber = line.split()[1]
 		if 'simpleCardMap' in line:
 			simpleCardMap = eval(line.split('simpleCardMap ')[-1])
 		if 'injectionMapping' in line:
@@ -265,17 +267,17 @@ def getValuesFromFile(outputDir):
 		if 'maxRange' in line:
 			maxRange = int(line.split('maxRange ')[-1])
 
-	return injectionMapping, simpleCardMap, minRange, maxRange
+	return injectionMapping, simpleCardMap, minRange, maxRange, dacNumber
 
 def QIECalibrationScan(options):
 	##load teststand 904, will this be the correcto configuration for 
-	ts = teststand("904")
-		
+#	ts = teststand("904")
+	ts = None
 	## take data separated by capID
 	sepCapID = options.sepCapID
 	print "Separate capID =",sepCapID
 
-	dacNum = getDACNumber()
+#	dacNum = getDACNumber()
 
 	## create directory structure:
 	## in the end, it will be /InjectionData/date/Run_XX/CalMode_FixedRangeY/
@@ -288,7 +290,7 @@ def QIECalibrationScan(options):
 	cursorLocal.execute("drop table if exists qieparams")
 	cursorLocal.execute("create table if not exists qieparams(id STRING, qie INT, capID INT, range INT, directoryname STRING, date STRING, slope REAL, offset REAL)")
 
-	injectionMapping, simpleCardMap, minRange, maxRange = getValuesFromFile(outputDirectory)
+	injectionMapping, simpleCardMap, minRange, maxRange, dacNum = getValuesFromFile(outputDirectory)
 
 	print injectionMapping
 	print simpleCardMap
@@ -407,7 +409,6 @@ if __name__ == "__main__":
 	if options.outputDirectory == 'Unknown':
 		print 'Specify a directory to read from'
 		sys.exit()
-
 	print 'Start'
 	QIECalibrationScan(options)
 
