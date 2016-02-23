@@ -14,7 +14,7 @@ cursor = qieParams.cursor()
 
 QIE_ID_list = list(set(cursor.execute("select id from qieparams").fetchall()))
 
-sample1Type = open("testSample1.xml",'w')
+sample1Type = open("partialInstallationQIEs_1.xml",'w')
 
 versionNumber = 1
 
@@ -26,18 +26,24 @@ outputline += '\n'
 
 sample1Type.write(outputline)
 
+from SerialNumberMap import *
+
 for qieID in QIE_ID_list:
-    qieID = qieID[0].replace(' ','')
+    print qieID
+    serialNum = mapUIDtoSerial[qieID[0]]
+    serialNum += 3040000000000500000
+    print serialNum
+#    qieID = qieID[0].replace(' ','')
     outputline =  '<PART mode="auto">\n'
     outputline += '        <KIND_OF_PART>HCAL QIE10 Card</KIND_OF_PART>\n'
-    outputline += '        <BARCODE>%s</BARCODE>\n'
-    
+    outputline += '        <BARCODE>%s</BARCODE>\n'%serialNum
+    outputline += '        <SERIALNUMBER>%s</SERIALNUMBER>\n'%qieID    
     outputline += '        <COMMENT_DESCRIPTION>QIE10-ADC Relationship</COMMENT_DESCRIPTION>\n'
     outputline += '    <CHILDREN>\n'
     for i_qie in range(24):
         outputline += '        <PART mode="auto">\n'
         outputline += '            <KIND_OF_PART>HCAL QIE10 ADC</KIND_OF_PART>\n'
-        outputline += '            <NAME_LABEL>%s-%i</NAME_LABEL>\n'%(qieID, i_qie)
+        outputline += '            <NAME_LABEL>%s-%i</NAME_LABEL>\n'%(serialNum, i_qie)
         outputline += '            <PREDEFINED_ATTRIBUTES>\n'
         outputline += '                <ATTRIBUTE>\n'
         outputline += '                    <NAME>QIE10 ADC Channel Number</NAME>\n'
@@ -53,7 +59,7 @@ outputline =  '</PARTS>\n'
 outputline += '</ROOT>\n'
 sample1Type.write(outputline)    
 
-sample2Type = open("testSample2.xml",'w')
+sample2Type = open("partialInstallationQIEs_2.xml",'w')
 
 outputline = ''
 outputline += '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
@@ -79,7 +85,9 @@ sample2Type.write(outputline)
 print QIE_ID_list
 for qieID in QIE_ID_list:
     unique_id = str(qieID[0])
-    qieID = qieID[0].replace(' ','')
+    serialNum = mapUIDtoSerial[qieID[0]]
+    serialNum += 3040000000000500000
+#    qieID = qieID[0].replace(' ','')
     for i_qie in range(24):
         outputline = ''
         outputline += '    <DATA_SET>\n'
@@ -87,7 +95,7 @@ for qieID in QIE_ID_list:
         outputline += '        <COMMENT_DESCRIPTION>NORM Calib Constants of QIE10</COMMENT_DESCRIPTION>\n'
         outputline += '        <PART>\n'
         outputline += '            <KIND_OF_PART>HCAL QIE10 ADC</KIND_OF_PART>\n'
-        outputline += '            <NAME_LABEL>%s-%i</NAME_LABEL>\n'%(qieID, i_qie)
+        outputline += '            <NAME_LABEL>%s-%i</NAME_LABEL>\n'%(serialNum, i_qie)
         outputline += '        </PART>\n'
         outputline += '        <DATA>\n'
         for i_capID in range(4):
@@ -105,7 +113,7 @@ for qieID in QIE_ID_list:
 sample2Type.write('</ROOT>\n')
 
 
-sample3Type = open("testSample3.xml",'w')
+sample3Type = open("partialInstallationQIEs_3.xml",'w')
 
 qieTestParams = connect(directory+'/qieTestParameters.db')
 cursorTest = qieTestParams.cursor()
@@ -133,7 +141,9 @@ outputline += '\n'
 sample3Type.write(outputline)
 for qieID in QIE_ID_list:
     unique_id = str(qieID[0])
-    qieID = qieID[0].replace(' ','')
+    serialNum = mapUIDtoSerial[qieID[0]]
+    serialNum += 3040000000000500000
+#    qieID = qieID[0].replace(' ','')
     for i_qie in range(24):
         outputline = ''
         outputline += '    <DATA_SET>\n'
@@ -141,13 +151,13 @@ for qieID in QIE_ID_list:
         outputline += '        <COMMENT_DESCRIPTION>QIE10 Properties</COMMENT_DESCRIPTION>\n'
         outputline += '        <PART>\n'
         outputline += '            <KIND_OF_PART>HCAL QIE10 ADC</KIND_OF_PART>\n'
-        outputline += '            <NAME_LABEL>%s-%i</NAME_LABEL>\n'%(qieID, i_qie)
+        outputline += '            <NAME_LABEL>%s-%i</NAME_LABEL>\n'%(serialNum, i_qie)
         outputline += '        </PART>\n'
         outputline += '        <DATA>\n'
         query = (unique_id, i_qie+1)
                 
         params = cursorTest.execute("select type1_r0, type2_r0, type1_r1, type2_r1, type3_r1, type1_r2, type2_r2, tdcstart from qietestparams where id = ? and qie = ?", query).fetchall()
-        print params
+        #print params
         if len(params) > 0:
             type1_r0, type2_r0, type1_r1, type2_r1, type3_r1, type1_r2, type2_r2, tdcstart = params[0]
             outputline += '            <RNG0TO1_ERR_RATE_TYP1>%.6f</RNG0TO1_ERR_RATE_TYP1>\n'%(type1_r0)

@@ -62,7 +62,7 @@ def fillHistos(values):
              }    
     
     for entry in values:
-        qieID, qieNum, i_capID, qieRange, directory, timestamp, slope, offset = entry
+        qieID, serial,  qieNum, i_capID, qieRange, directory, timestamp, slope, offset = entry
         hists[qieRange][i_capID][0].Fill(slope)
         hists[qieRange][i_capID][1].Fill(offset)
         hists[qieRange]['all'][0].Fill(slope)

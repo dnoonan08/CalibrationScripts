@@ -23,6 +23,8 @@ from GraphParamDist import *
 
 import sqlite3 as lite
 
+from SerialNumberMap import *
+
 # from RangeTransitionErrors import *
 
 orbitDelay = 3507
@@ -99,9 +101,10 @@ def read_histo(file_in="", sepCapID=True, qieRange = 0):
 				info["rms"] = []
 				for i_capID in range(4):
 					offset = 64*(i_capID)
+					if th.GetBinContent(2)==0 and th.GetBinContent(3)==0 and th.GetBinContent(4)==0: th.SetBinContent(1,0)
 					th.GetXaxis().SetRangeUser(offset, offset+63)
 					info["mean"].append(th.GetMean()-offset+rangeADCoffset)
-					info["rms"].append(max(0.01, th.GetRMS()))
+					info["rms"].append(max(0.2, th.GetRMS()))
 #					info["rms"].append(th.GetRMS())
 				result[histNum] = info
 		
@@ -283,17 +286,29 @@ def QIECalibrationScan(options):
 	## in the end, it will be /InjectionData/date/Run_XX/CalMode_FixedRangeY/
 	outputDirectory = options.outputDirectory+'/'
 
+	injectionMapping, simpleCardMap, minRange, maxRange, dacNum = getValuesFromFile(outputDirectory)
+
+	print injectionMapping
+	print simpleCardMap
+
+	allCardsHaveSerialNumber = True
+	for i_slot in injectionMapping:
+		uID = injectionMapping[i_slot]['id']		
+		if not uID in mapUIDtoSerial:
+			print 'Missing serial number for card %s' %uID
+			print 'Please edit SerialNumberMap.py to include this card'
+			allCardsHaveSerialNumber = False
+
+	if not allCardsHaveSerialNumber:
+		sys.exit()
+
 	## load qie parameters db
 
 	qieParamsLocal = lite.connect(outputDirectory+"qieCalibrationParameters.db")
 	cursorLocal = qieParamsLocal.cursor()
 	cursorLocal.execute("drop table if exists qieparams")
-	cursorLocal.execute("create table if not exists qieparams(id STRING, qie INT, capID INT, range INT, directoryname STRING, date STRING, slope REAL, offset REAL)")
+	cursorLocal.execute("create table if not exists qieparams(id STRING, serial INT, qie INT, capID INT, range INT, directoryname STRING, date STRING, slope REAL, offset REAL)")
 
-	injectionMapping, simpleCardMap, minRange, maxRange, dacNum = getValuesFromFile(outputDirectory)
-
-	print injectionMapping
-	print simpleCardMap
 	
 
 #	print_links(ts)
@@ -316,6 +331,7 @@ def QIECalibrationScan(options):
 		maxRange = int(options.range)+1
 
 	outputParamFile = open(outputDirectory+"calibrationParams.txt",'w')
+	outputParamFile.write('(qieID, serialNum, qieNum, capID, qieRange, outputDirectory, timeStamp, slope, offset)\n')
 
 
 	for qieRange in range(minRange, maxRange):
@@ -359,13 +375,14 @@ def QIECalibrationScan(options):
 				# for i_capID in range(4):
 				# 	graphs[ih][i_capID].Write()
 				qieID = injectionMapping[simpleCardMap[int(ih/12)]]['id']
+				serial = mapUIDtoSerial[qieID]
 				qieNum = ih%24 + 1
 				params = doFit_combined(graphs[ih],int(qieRange), True, qieNum, qieID.replace(' ', '_'),options.useCalibrationMode, rangeOutputDirectory)
 				for i_capID in range(4):
 
-					values = (qieID, qieNum, i_capID, qieRange, outputDirectory, str(datetime.now()), params[i_capID][0], params[i_capID][1])
+					values = (qieID, serial, qieNum, i_capID, qieRange, outputDirectory, str(datetime.now()), params[i_capID][0], params[i_capID][1])
 					
-					cursorLocal.execute("insert into qieparams values (?, ?, ?, ?, ?, ?, ? , ?)",values)
+					cursorLocal.execute("insert into qieparams values (?, ?, ?, ?, ?, ?, ? , ?, ?)",values)
 
 					outputParamFile.write(str(values)+'\n')
 

@@ -9,7 +9,7 @@ ROOT.gStyle.SetCanvasColor(kWhite)
 gStyle.SetStatStyle(kWhite)
 gStyle.SetTitleStyle(kWhite)
 
-graphOffset = [100,500,2000,8000]
+graphOffset = [100,500,3000,8000]
 
 startVal = [[3.2,-15],
 	    [2.5e+01,-1.0e+03],
@@ -19,8 +19,8 @@ startVal = [[3.2,-15],
 
 Varlimits = [[[2.5,4.0],[-40,0]],
 	     [[20.,30.],[-2000,-500]],
-	     [[0.75*2.1e+02,1.25*2.1e+02],[1.25*-2.2e+04,0.75*2.2e+04]],
-	     [[0.75*1.6e+03,1.25*1.6e+03],[1.25*-2.6e+05,0.75*2.6e+05]],
+	     [[0.75*2.1e+02,1.25*2.1e+02],[1.25*-2.2e+04,0.75*-2.2e+04]],
+	     [[0.75*1.6e+03,1.25*1.6e+03],[1.25*-2.6e+05,0.75*-2.6e+05]],
 	     ]
 	       
 def invertFunction(x,y,p0,p1, vOffset):
@@ -43,15 +43,19 @@ def invertFunction(x,y,p0,p1, vOffset):
 
 def fit_graph(graph, qieRange, vOffset):
     vOffset = qieRange*64
+    x1 = 16
+    x2 = 36
+    x3 = 57
+
     def subrangeFit_continuous(x,p):
-        if x[0] - vOffset < 16:
+        if x[0] - vOffset < x1:
             return p[0]*x[0] + p[1]
-        elif x[0] - vOffset < 36:
-            return 2*p[0]*x[0] - p[0]*(16+vOffset) + p[1]
-        elif x[0] - vOffset < 57:
-            return 4*p[0]*x[0] -2*p[0]*(vOffset+36) - p[0]*(16+vOffset) + p[1]
+        elif x[0] - vOffset < x2:
+            return 2*p[0]*x[0] - p[0]*(x1+vOffset) + p[1]
+        elif x[0] - vOffset < x3:
+            return 4*p[0]*x[0] -2*p[0]*(vOffset+x2) - p[0]*(x1+vOffset) + p[1]
         elif x[0] - vOffset < 63:
-            return 8*p[0]*x[0] -4*p[0]*(vOffset+57) -2*p[0]*(vOffset+36) - p[0]*(16+vOffset) + p[1]
+            return 8*p[0]*x[0] -4*p[0]*(vOffset+x3) -2*p[0]*(vOffset+x2) - p[0]*(x1+vOffset) + p[1]
         else: return 0
     
     xVals = graph.GetX()
@@ -73,9 +77,6 @@ def fit_graph(graph, qieRange, vOffset):
     # print max(1+vOffset,min_x+1),min(max_x-1,62+vOffset)
     
     combined = TF1("fullrange",subrangeFit_continuous,max(1+vOffset,min_x+1),min(max_x-1,62+vOffset),2)
-    # print startVal[qieRange][0], startVal[qieRange][1]
-    # print 0.8*startVal[qieRange][0],1.2*startVal[qieRange][0]
-    # print 1.2*startVal[qieRange][1],0.8*startVal[qieRange][1]
 
     combined.SetParameters(0,startVal[qieRange][0])
     combined.SetParameters(1,startVal[qieRange][1])
@@ -97,6 +98,9 @@ lineColors = [kRed, kBlue, kGreen+2, kCyan]
 def doFit_combined(graphs, qieRange, saveGraph = False, qieNumber = 0, qieUniqueID = "", useCalibrationMode = True, outputDir = ''):
 
     fitLines = []
+    slopes = []
+    offsets = []
+
     for i_capID in range(4):
         graph = graphs[i_capID]
         fitLine = fit_graph(graph, qieRange, 0)
@@ -120,8 +124,8 @@ def doFit_combined(graphs, qieRange, saveGraph = False, qieNumber = 0, qieUnique
                 qieInfo += ", QIE " + str(qieNumber)
                 saveName += "_qie"+str(qieNumber)
             qieInfo += ", CapID " + str(i_capID)
-            saveName += "_capID"+str(i_capID)
             saveName += "_range"+str(qieRange)
+            saveName += "_capID"+str(i_capID)
             if not useCalibrationMode: saveName += "_NotCalMode"
             saveName += ".pdf"
             graph.SetTitle("ADC vs Charge, Range %i%s" % (qieRange,qieInfo))
@@ -208,6 +212,8 @@ def doFit_combined(graphs, qieRange, saveGraph = False, qieNumber = 0, qieUnique
             text = TPaveText(xmin + (xmax-xmin)*.2, ymax - (ymax-ymin)*(.3),xmin + (xmax-xmin)*.6,ymax-(ymax-ymin)*.1)
             text.SetFillColor(kWhite)
             text.SetFillStyle(4000)
+	    slopes.append( (fitLine.GetParameter(0), fitLine.GetParError(0) ) )
+	    offsets.append( (fitLine.GetParameter(1), fitLine.GetParError(1) ) )
             text.AddText("Slope =  %.2f +- %.2f fC/ADC" % (fitLine.GetParameter(0), fitLine.GetParError(0)))
             text.AddText("Offset =  %.2f +- %.2f fC" % (fitLine.GetParameter(1), fitLine.GetParError(1)))
             text.Draw("same")
@@ -291,6 +297,31 @@ def doFit_combined(graphs, qieRange, saveGraph = False, qieNumber = 0, qieUnique
 	 #   print graph
             fitLine.SetLineColor(lineColors[i_capID])
             fitLine.SetLineWidth(2)
+
+	    print xmin, xmax
+	    print ymin, ymax
+	    if not qieRange==3:
+		    text = TPaveText(xmin +5, ymax + 3*graphOffset[qieRange] - (ymax-ymin)*(.7) ,xmin + 50 ,ymax+3.75*graphOffset[qieRange])
+	    else:
+		    text = TPaveText(xmin +25, ymax + 2*graphOffset[qieRange] - (ymax-ymin)*(.7) ,xmin + 75 ,ymax+3.75*graphOffset[qieRange])
+
+	    text.SetFillColor(kWhite)
+	    text.SetFillStyle(4000)
+	    text.SetTextAlign(11)
+	    text.AddText("CapID 0:")
+	    text.AddText("    Slope =  %.2f +- %.2f fC/ADC" % slopes[0])
+            text.AddText("    Offset =  %.2f +- %.2f fC" % offsets[0])
+	    text.AddText("CapID 1:")
+            text.AddText("    Slope =  %.2f +- %.2f fC/ADC" % slopes[1])
+            text.AddText("    Offset =  %.2f +- %.2f fC" % offsets[1])
+	    text.AddText("CapID 2:")
+            text.AddText("    Slope =  %.2f +- %.2f fC/ADC" % slopes[2])
+            text.AddText("    Offset =  %.2f +- %.2f fC" % offsets[2])
+	    text.AddText("CapID 3:")
+            text.AddText("    Slope =  %.2f +- %.2f fC/ADC" % slopes[3])
+            text.AddText("    Offset =  %.2f +- %.2f fC" % offsets[3])
+            text.Draw("same")
+
             if i_capID==0:
                 graph.Draw("ap")
                 graph.SetTitle("ADC vs Charge, Range %i, %s, QIE %i" % (qieRange,qieUniqueID,qieNumber))

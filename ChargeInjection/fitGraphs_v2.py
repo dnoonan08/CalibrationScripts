@@ -111,6 +111,8 @@ def fit_graph(graph, qieRange, vOffset):
 
     print graph.GetName()
     print combined.GetChisquare()
+    print combined.GetNDF()
+    print combined.GetChisquare()/combined.GetNDF()
 
     return combined
 
@@ -143,8 +145,8 @@ def doFit_combined(graphs, qieRange, saveGraph = False, qieNumber = 0, qieUnique
                 qieInfo += ", QIE " + str(qieNumber)
                 saveName += "_qie"+str(qieNumber)
             qieInfo += ", CapID " + str(i_capID)
-            saveName += "_capID"+str(i_capID)
             saveName += "_range"+str(qieRange)
+            saveName += "_capID"+str(i_capID)
             if not useCalibrationMode: saveName += "_NotCalMode"
             saveName += ".pdf"
             graph.SetTitle("ADC vs Charge, Range %i%s" % (qieRange,qieInfo))
@@ -228,8 +230,12 @@ def doFit_combined(graphs, qieRange, saveGraph = False, qieNumber = 0, qieUnique
             text = TPaveText(xmin + (xmax-xmin)*.2, ymax - (ymax-ymin)*(.3),xmin + (xmax-xmin)*.6,ymax-(ymax-ymin)*.1)
             text.SetFillColor(kWhite)
             text.SetFillStyle(4000)
-            text.AddText("Slope =  %.2f fC/ADC" % (1./fitLine.GetParameter(0)))
-#            text.AddText("Offset =  %.2f +- %.2f fC" % (fitLine.GetParameter(1), fitLine.GetParError(1)))
+	    slope = 1./fitLine.GetParameter(0)
+	    slopeErr = fitLine.GetParError(0)/fitLine.GetParameter(0)*slope
+	    offset = -1*fitLine.GetParameter(1)/fitLine.GetParameter(0)
+	    offsetErr = fitLine.GetParError(1)/fitLine.GetParameter(1)*offset
+            text.AddText("Slope =  %.3f +- %.3f fC/ADC" % (slope, slopeErr))
+            text.AddText("Offset =  %.3f +- %.3f fC" % (offset, offsetErr))
             text.Draw("same")
 
 
@@ -253,7 +259,7 @@ def doFit_combined(graphs, qieRange, saveGraph = False, qieNumber = 0, qieUnique
             residualGraphX.GetXaxis().SetLabelSize(0.15)
             residualGraphX.GetYaxis().SetLabelSize(0.15)
             residualGraphX.GetYaxis().SetTitle("Residuals")
-            residualGraphX.GetXaxis().SetTitle("ADC")
+            residualGraphX.GetXaxis().SetTitle("Charge (fC)")
             residualGraphX.GetXaxis().SetTitleSize(0.15)
             residualGraphX.GetYaxis().SetTitleSize(0.15)
             residualGraphX.GetYaxis().SetTitleOffset(0.33)

@@ -29,6 +29,8 @@ from RangeTransitionErrors import *
 from TDC_scan import *
 #from read_histo import *
 
+from SerialNumberMap import *
+
 gROOT.SetBatch(kTRUE)
 
 
@@ -419,16 +421,6 @@ def QIECalibrationScan(options):
 	outputDirectory += fileVersion
 	os.system( "mkdir -pv "+outputDirectory )
 
-	## load qie parameters db
-	qieParams = lite.connect("qieCalibrationParameters.db")
-	cursor = qieParams.cursor()
-	cursor.execute("create table if not exists qieparams(id STRING, qie INT, capID INT, range INT, directoryname STRING, date STRING, slope REAL, offset REAL)")
-
-	qieParamsLocal = lite.connect(outputDirectory+"qieCalibrationParameters.db")
-	cursorLocal = qieParamsLocal.cursor()
-	cursorLocal.execute("create table if not exists qieparams(id STRING, qie INT, capID INT, range INT, directoryname STRING, date STRING, slope REAL, offset REAL)")
-
-
 	print 'Start Mapping'
 
 
@@ -443,6 +435,27 @@ def QIECalibrationScan(options):
 
 	print injectionMapping
 	print simpleCardMap
+
+	allCardsHaveSerialNumber = True
+	for i_slot in injectionMapping:
+		uID = injectionMapping[i_slot]['id']		
+		if not uID in mapUIDtoSerial:
+			print 'Missing serial number for card %s' %uID
+			print 'Please edit SerialNumberMap.py to include this card'
+			allCardsHaveSerialNumber = False
+
+	if not allCardsHaveSerialNumber:
+		sys.exit()
+
+	## load qie parameters db
+	qieParams = lite.connect("qieCalibrationParameters.db")
+	cursor = qieParams.cursor()
+	cursor.execute("create table if not exists qieparams(id STRING, serial INT, qie INT, capID INT, range INT, directoryname STRING, date STRING, slope REAL, offset REAL)")
+
+	qieParamsLocal = lite.connect(outputDirectory+"qieCalibrationParameters.db")
+	cursorLocal = qieParamsLocal.cursor()
+	cursorLocal.execute("create table if not exists qieparams(id STRING, serial INT, qie INT, capID INT, range INT, directoryname STRING, date STRING, slope REAL, offset REAL)")
+
 
 	print_links(ts)
 
@@ -512,6 +525,7 @@ def QIECalibrationScan(options):
 	dataFile.close()	
 
 	outputParamFile = open(outputDirectory+"calibrationParams.txt",'w')
+	outputParamFile.write('(qieID, serialNum, qieNum, capID, qieRange, outputDirectory, timeStamp, slope, offset)\n')
 
 
 	for qieRange in range(minRange, maxRange):
@@ -556,6 +570,7 @@ def QIECalibrationScan(options):
 				for i_capID in range(4):
 					graphs[ih][i_capID].Write()
 				qieID = injectionMapping[simpleCardMap[int(ih/12)]]['id']
+				serial = mapUIDtoSerial[qieID]
 				qieNum = ih%24 + 1
 				outputTGraphs.cd()
 				params = doFit_combined(graphs[ih],int(qieRange), True, qieNum, qieID.replace(' ', '_'),options.useCalibrationMode, rangeOutputDirectory)
@@ -570,10 +585,10 @@ def QIECalibrationScan(options):
 
 					# values = (qieID, qieNum, i_capID, qieRange, version, str(datetime.now()), params[i_capID][0], params[i_capID][1])
 
-					values = (qieID, qieNum, i_capID, qieRange, outputDirectory, str(datetime.now()), params[i_capID][0], params[i_capID][1])
+					values = (qieID, serial, qieNum, i_capID, qieRange, outputDirectory, str(datetime.now()), params[i_capID][0], params[i_capID][1])
 					
-					cursor.execute("insert into qieparams values (?, ?, ?, ?, ?, ?, ? , ?)",values)
-					cursorLocal.execute("insert into qieparams values (?, ?, ?, ?, ?, ?, ? , ?)",values)
+					cursor.execute("insert into qieparams values (?, ?, ?, ?, ?, ?, ?, ? , ?)",values)
+					cursorLocal.execute("insert into qieparams values (?, ?, ?, ?, ?, ?, ?, ? , ?)",values)
 
 					outputParamFile.write(str(values)+'\n')
 		else:
