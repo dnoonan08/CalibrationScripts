@@ -29,11 +29,11 @@ def fillHistos(values):
                   ]
 
 
-    print minslopes
-    print maxslopes
+#     print minslopes
+#     print maxslopes
 
-    print minoffsets
-    print maxoffsets
+#     print minoffsets
+#     print maxoffsets
 
     hists = {0:{'all':[TH1F("Range0Slopes","Range0Slopes",50,minslopes[0]-.1, maxslopes[0]+.1), TH1F("Range0Offsets","Range0Offsetss",50,-20,-100)],
                 0:[TH1F("Range0SlopesCapID0","Range0SlopesCapID0",50,minslopes[0]-.1, maxslopes[0]+.1), TH1F("Range0OffsetsCapID0","Range0OffsetsCapID0",50,-20,-100)],
@@ -63,6 +63,7 @@ def fillHistos(values):
     
     for entry in values:
         qieID, serial,  qieNum, i_capID, qieRange, directory, timestamp, slope, offset = entry
+#         print slope, offset
         hists[qieRange][i_capID][0].Fill(slope)
         hists[qieRange][i_capID][1].Fill(offset)
         hists[qieRange]['all'][0].Fill(slope)

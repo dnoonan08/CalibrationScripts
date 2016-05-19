@@ -76,7 +76,7 @@ def fit_graph(graph, qieRange, vOffset):
     # print yVals_list
     # print max(1+vOffset,min_x+1),min(max_x-1,62+vOffset)
     
-    combined = TF1("fullrange",subrangeFit_continuous,max(1+vOffset,min_x+1),min(max_x-1,62+vOffset),2)
+    combined = TF1("fit_"+graph.GetName(),subrangeFit_continuous,max(1+vOffset,min_x+1),min(max_x-1,62+vOffset),2)
 
     combined.SetParameters(0,startVal[qieRange][0])
     combined.SetParameters(1,startVal[qieRange][1])
@@ -286,6 +286,13 @@ def doFit_combined(graphs, qieRange, saveGraph = False, qieNumber = 0, qieUnique
     params = []
     for i in range(4):
         params.append(fitLines[i].GetParameters())
+    outputTGraphs = TFile(outputDir+"/adcVSfc_graphs.root","update")
+
+    for graph in graphs:
+	    graph.Write()
+    for fitLine in fitLines:
+	    fitLine.SetNpx(4000)
+	    fitLine.Write()
 
     if saveGraph:
         saveName = saveName.replace("_capID"+str(i_capID),"")

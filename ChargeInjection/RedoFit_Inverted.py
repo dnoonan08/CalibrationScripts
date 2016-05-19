@@ -6,8 +6,8 @@ import subprocess
 import sys
 
 from scans import *
-from adcTofC_v2 import *
-from fitGraphs_v2 import *
+from adcTofC_Inverted import *
+from fitGraphs_Inverted import *
 from ROOT import *
 #from DAC import *
 

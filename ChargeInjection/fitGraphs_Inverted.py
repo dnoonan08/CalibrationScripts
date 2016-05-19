@@ -122,6 +122,8 @@ lineColors = [kRed, kBlue, kGreen+2, kCyan]
 def doFit_combined(graphs, qieRange, saveGraph = False, qieNumber = 0, qieUniqueID = "", useCalibrationMode = True, outputDir = ''):
 
     fitLines = []
+    slopes = []
+    offsets = []
     for i_capID in range(4):
         graph = graphs[i_capID]
         fitLine = fit_graph(graph, qieRange, 0)
@@ -230,10 +232,18 @@ def doFit_combined(graphs, qieRange, saveGraph = False, qieNumber = 0, qieUnique
             text = TPaveText(xmin + (xmax-xmin)*.2, ymax - (ymax-ymin)*(.3),xmin + (xmax-xmin)*.6,ymax-(ymax-ymin)*.1)
             text.SetFillColor(kWhite)
             text.SetFillStyle(4000)
-	    slope = 1./fitLine.GetParameter(0)
-	    slopeErr = fitLine.GetParError(0)/fitLine.GetParameter(0)*slope
-	    offset = -1*fitLine.GetParameter(1)/fitLine.GetParameter(0)
-	    offsetErr = fitLine.GetParError(1)/fitLine.GetParameter(1)*offset
+	    slopes.append( (fitLine.GetParameter(0), fitLine.GetParError(0) ) )
+	    offsets.append( (fitLine.GetParameter(1), fitLine.GetParError(1) ) )
+
+# 	    slope = 1./fitLine.GetParameter(0)
+# 	    slopeErr = fitLine.GetParError(0)/fitLine.GetParameter(0)*slope
+# 	    offset = -1*fitLine.GetParameter(1)/fitLine.GetParameter(0)
+# 	    offsetErr = fitLine.GetParError(1)/fitLine.GetParameter(1)*offset
+	    slope = fitLine.GetParameter(0)
+	    slopeErr = fitLine.GetParError(0)
+	    offset = fitLine.GetParameter(1)
+	    offsetErr = fitLine.GetParError(1)
+
             text.AddText("Slope =  %.3f +- %.3f fC/ADC" % (slope, slopeErr))
             text.AddText("Offset =  %.3f +- %.3f fC" % (offset, offsetErr))
             text.Draw("same")
@@ -305,12 +315,12 @@ def doFit_combined(graphs, qieRange, saveGraph = False, qieNumber = 0, qieUnique
 
     params = []
     for i in range(4):
-	    p0 = fitLines[i].GetParameter(0)
-	    p1 = fitLines[i].GetParameter(1)
-	    slope = 1./p0
-	    offset = -1.*p1/p0
-	    params.append([slope,offset])
-#	    params.append(fitLines[i].GetParameters())
+# 	    p0 = fitLines[i].GetParameter(0)
+# 	    p1 = fitLines[i].GetParameter(1)
+# 	    slope = 1./p0
+# 	    offset = -1.*p1/p0
+# 	    params.append([slope,offset])
+	    params.append(fitLines[i].GetParameters())
     
 
     outputTGraphs = TFile(outputDir+"/adcVSfc_graphs.root","update")
@@ -333,7 +343,10 @@ def doFit_combined(graphs, qieRange, saveGraph = False, qieNumber = 0, qieUnique
             if i_capID==0:
                 graph.Draw("ap")
                 graph.SetTitle("ADC vs Charge, Range %i, %s, QIE %i" % (qieRange,qieUniqueID,qieNumber))
-		graph.GetYaxis().SetRangeUser(ymin-5,graph.GetYaxis().GetXmax()+20)
+		if qieRange==0:
+			graph.GetYaxis().SetRangeUser(ymin-5,graph.GetYaxis().GetXmax()+10)
+		else:
+			graph.GetYaxis().SetRangeUser(ymin-5,graph.GetYaxis().GetXmax())
             else:
                 N_ = graph.GetN()
                 x_ = graph.GetX()
@@ -343,6 +356,40 @@ def doFit_combined(graphs, qieRange, saveGraph = False, qieNumber = 0, qieUnique
                 graph.Draw("p, same")
                 fitLine.SetParameter(1,fitLine.GetParameter(1)+(5*i_capID))
             fitLine.Draw("same")
+
+	xdiff = xmax-xmin
+	ydiff = ymax-ymin
+	text1 = TPaveText(xmin+0.30*(xdiff), ymin,xmin+0.70*(xdiff) ,ymin+.5*ydiff)
+	text2 = TPaveText(xmin+0.69*(xdiff), ymin,xmin+1.10*(xdiff) ,ymin+.5*ydiff)
+	text1.SetTextSize(0.023)
+	text2.SetTextSize(0.023)
+
+	text2.SetFillColor(kWhite)
+	text2.SetFillStyle(4000)
+	text2.SetTextAlign(11)
+	text1.SetFillColor(kWhite)
+	text1.SetFillStyle(4000)
+	text1.SetTextAlign(11)
+	text1.AddText("CapID 0:")
+	text1.AddText("    Slope =  %.3e +- %.1e ADC/fC" % slopes[0])
+	text1.AddText("    Offset =  %.3f +- %.3f ADC" % offsets[0])
+#	text1.AddText("    Offset =  %.3f +- %.3f ADC" % (findYintercept(offsets[0],qieRange),offsets[0][1]))
+	text2.AddText("CapID 1:")
+	text2.AddText("    Slope =  %.3e +- %.1e ADC/fC" % slopes[1])
+	text2.AddText("    Offset =  %.3f +- %.3f ADC" % offsets[1])
+#	text2.AddText("    Offset =  %.3f +- %.3f ADC" % (findYintercept(offsets[1],qieRange),offsets[1][1]))
+	text1.AddText("CapID 2:")
+	text1.AddText("    Slope =  %.3e +- %.1e ADC/fC" % slopes[2])
+	text1.AddText("    Offset =  %.3f +- %.3f ADC" % offsets[2])
+#	text1.AddText("    Offset =  %.3f +- %.3f ADC" % (findYintercept(offsets[2],qieRange),offsets[2][1]))
+	text2.AddText("CapID 3:")
+	text2.AddText("    Slope =  %.3e +- %.1e ADC/fC" % slopes[3])
+	text2.AddText("    Offset =  %.3f +- %.3f ADC" % offsets[3])
+#	text2.AddText("    Offset =  %.3f +- %.3f ADC" % (findYintercept(offsets[3],qieRange),offsets[3][1]))
+	text1.Draw("same")
+	text2.Draw("same")
+
+
         c1.SaveAs(saveName)
         # for i_capID in range(4):
 	# 	fitLine = fitLines[i_capID]

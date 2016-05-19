@@ -124,7 +124,7 @@ def get_transitionErrors(file_in = "", lowrange = 0):
 
 		integral_Tot = max(hist.Integral(-1,-1),1.)
 		integral_type1 = hist.Integral(offset+1,offset+2)
-		integral_type2 = hist.Integral(offset+3,offset+58)
+		integral_type2 = hist.Integral(offset+3,offset+55)
 		integral_type3 = hist.Integral(1,2)
 
 		transitionError.append([integral_type1/integral_Tot, integral_type2/integral_Tot, integral_type3/integral_Tot])

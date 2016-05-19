@@ -25,7 +25,7 @@ import sqlite3 as lite
 
 from SerialNumberMap import *
 
-#from RangeTransitionErrors import *
+from RangeTransitionErrors_ReRun import *
 
 orbitDelay = 3507
 GTXreset = 1
@@ -327,7 +327,10 @@ def QIECalibrationScan(options):
 
 
 
-	if not int(options.range) == -1:
+	if int(options.range) == -2:
+		minRange = 1
+		maxRange = 1
+	elif not int(options.range) == -1:
 		minRange = int(options.range)
 		maxRange = int(options.range)+1
 
@@ -363,6 +366,7 @@ def QIECalibrationScan(options):
 		# histoList = range(48,72)
 
 		outputTGraphs = TFile(rangeOutputDirectory+"/adcVSfc_graphs.root","recreate")
+		outputTGraphs.Close()
 
 		if options.SkipFit: continue
 
@@ -371,8 +375,8 @@ def QIECalibrationScan(options):
 
 #			print graphs
 			for ih in histoList:
-				for i_capID in range(4):
-					graphs[ih][i_capID].Write()
+#				for i_capID in range(4):
+#					graphs[ih][i_capID].Write()
 				qieID = injectionMapping[simpleCardMap[int(ih/12)]]['id']
 				serial = mapUIDtoSerial[qieID]
 				qieNum = ih%24 + 1
@@ -395,6 +399,45 @@ def QIECalibrationScan(options):
 	graphParamDist(outputDirectory+"qieCalibrationParameters.db")
 
 
+	if options.RunRangeTransitionScan:
+		qieTestParamsLocal = lite.connect(outputDirectory+"qieTestParameters.db")
+		cursorLocal = qieTestParamsLocal.cursor()
+
+		tdcvalues = {}
+		
+		values = cursorLocal.execute("select id, qie, tdcstart from qietestparams").fetchall() 
+		for v in values:
+			if not v[0] in tdcvalues:
+				tdcvalues[v[0]] = {}
+			tdcvalues[v[0]][v[1]]=v[2]
+
+
+		errorRate = runTransitionErrorScans(outDir = outputDirectory, transitionRanges = [0,1,2], mapping = simpleCardMap, runScan = False, dacNum=dacNum)
+
+		cursorLocal.execute("drop table if exists qietestparams")
+
+		cursorLocal.execute("create table if not exists qietestparams(id STRING, qie INT, type1_r0 REAL, type2_r0 REAL, type1_r1 REAL, type2_r1 REAL, type3_r1 REAL, type1_r2 REAL, type2_r2 REAL, tdcstart REAL)") 
+
+		for ih in histoList:
+			type1_r0 = errorRate[0][ih][1][0]
+			type2_r0 = errorRate[0][ih][2][0]
+			type1_r1 = errorRate[1][ih][1][0]
+			type2_r1 = errorRate[1][ih][2][0]
+			type3_r1 = errorRate[1][ih][3][0]
+			type1_r2 = errorRate[2][ih][1][0]
+			type2_r2 = errorRate[2][ih][2][0]
+
+			qieID = injectionMapping[simpleCardMap[int(ih/12)]]['id']
+			qieNum = ih%24 + 1
+
+			values = (qieID, qieNum, type1_r0, type2_r0, type1_r1, type2_r1, type2_r1, type1_r2, type2_r2, tdcvalues[qieID][qieNum])
+			
+			cursorLocal.execute("insert into qietestparams values (?, ?, ?, ?, ?, ?, ? , ?, ?, ?)",values)
+
+		cursorLocal.close()
+		qieTestParamsLocal.commit()
+		qieTestParamsLocal.close()
+
 		
 if __name__ == "__main__":
 	parser = OptionParser()
@@ -414,13 +457,14 @@ if __name__ == "__main__":
 			  help="Skip the fitting step")
 	parser.add_option("--NoLinkInit", action="store_true",dest="NoLinkInit",default=False,
 			  help="Skip the scan, using presaved scan")
-	parser.add_option("--SkipRangeTransition", action="store_false",dest="RunRangeTransitionScan",default=True,
+	parser.add_option("--RangeTransition", action="store_true",dest="RunRangeTransitionScan",default=False,
 			  help="Skip the range transition scans")
+	
 
 	(options, args) = parser.parse_args()
 
-	if not options.range == -1:
-		options.RunRangeTransitionScan=False
+#	if not options.range == -1:
+#		options.RunRangeTransitionScan=False
 	if options.outputDirectory == 'Unknown':
 		print 'Specify a directory to read from'
 		sys.exit()
