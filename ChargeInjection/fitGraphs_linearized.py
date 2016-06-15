@@ -158,8 +158,8 @@ def doFit_combined(graphList, qieRange, saveGraph = False, qieNumber = 0, qieUni
 				xErrorsArray = array('d',[0]*len(x))
 
 				
-
-				residualGraphX = TGraphErrors(len(x),xArray,resArray, xErrorsArray, resErrArray)
+				print i_range, i_capID, N, xArray, resArray
+				residualGraphX = TGraphErrors(N,xArray,resArray, xErrorsArray, resErrArray)
 
 				residualGraphX.SetTitle("")
 				c1 = TCanvas()

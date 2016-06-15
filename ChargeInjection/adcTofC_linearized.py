@@ -8,6 +8,7 @@ import os
 import string
 import sqlite3 as lite
 import csv
+from linearADC import *
 
 gROOT.SetBatch(kTRUE)
 
@@ -123,8 +124,12 @@ def makeADCvsfCgraphSepCapID(lsbList, values, histo_list = range(0,96), cardMap 
             mean_ = []
             rms_ = []
             for i_capID in range(4):
-                mean_.append(values[i_lsb][ih]['mean'][i_capID])
-                rms_.append(values[i_lsb][ih]['rms'][i_capID])
+#                lin_mean, lin_rms = 0., 0.
+                lin_mean, lin_rms = linADC(values[i_lsb][ih]['mean'][i_capID],values[i_lsb][ih]['rms'][i_capID])
+                mean_.append(lin_mean)
+                rms_.append(lin_rms)
+#                 mean_.append(values[i_lsb][ih]['mean'][i_capID])
+#                 rms_.append(values[i_lsb][ih]['rms'][i_capID])
             QIE_values.append([i_lsb,-1*charge,mean_,rms_])
 
         QIE_values.sort()

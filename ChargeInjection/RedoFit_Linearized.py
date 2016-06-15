@@ -9,6 +9,7 @@ from scans import *
 from adcTofC import *
 from fitGraphs_linearized import *
 from ROOT import *
+
 #from DAC import *
 
 # sys.path.insert(0, '../../hcal_teststand_scripts')
@@ -25,7 +26,7 @@ import sqlite3 as lite
 
 from SerialNumberMap import *
 
-from RangeTransitionErrors_ReRun import *
+from RangeTransitionErrors import *
 
 orbitDelay = 3507
 GTXreset = 1
@@ -373,8 +374,10 @@ if __name__ == "__main__":
 
 	(options, args) = parser.parse_args()
 
-#	if not options.range == -1:
-#		options.RunRangeTransitionScan=False
+	options.RunRangeTransitionScan=False
+	# if not options.range == -1:
+	# 	options.RunRangeTransitionScan=False
+
 	if options.outputDirectory == 'Unknown':
 		print 'Specify a directory to read from'
 		sys.exit()
