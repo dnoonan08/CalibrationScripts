@@ -7,8 +7,8 @@ def read_histo(file_in="", sepCapID=True, qieRange = 0):
 	if sepCapID:
 		rangeADCoffset = qieRange*64.
 		for i_link in range(24):
-			for i_ch in range(4):
-				histNum = 4*i_link + i_ch
+			for i_ch in range(6):
+				histNum = 6*i_link + i_ch
 				th = tf.Get("h{0}".format(histNum))
 				info = {}
 				info["link"] = i_link
@@ -25,8 +25,8 @@ def read_histo(file_in="", sepCapID=True, qieRange = 0):
 		
 	else:
 		for i_link in range(24):
-			for i_ch in range(4):
-				histNum = 4*i_link + i_ch
+			for i_ch in range(6):
+				histNum = 6*i_link + i_ch
 				th = tf.Get("h{0}".format(histNum))
 				info = {}
 				info["link"] = i_link

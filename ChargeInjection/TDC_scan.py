@@ -12,14 +12,14 @@ from hcal_teststand.uhtr import *
 from hcal_teststand import *
 from hcal_teststand.hcal_teststand import *
 from hcal_teststand.qie import *
-from checkLinks import *
+from checkLinks_Old import *
 from DAC import *
 
 from numpy import mean
 
 gROOT.SetBatch(kTRUE)
 
-scanValues = range(10000,18000,400)
+TDC_Scan_Values = range(10000,18000,400)
 
 def check_qie_status(ts, crate, slot):
 	commands = []
@@ -129,30 +129,30 @@ def runTDCScan(mapping, dac, orbitDelay, outputDir = 'testDir'):
     tdcHist['full']={}
 
     
-    qlow, lowCurrent = getCharge(0, scanValues[0], mapping, dac)
-    qhigh, highCurrent = getCharge(0, scanValues[-1], mapping, dac)
+    qlow, lowCurrent = getCharge(0, TDC_Scan_Values[0], mapping, dac)
+    qhigh, highCurrent = getCharge(0, TDC_Scan_Values[-1], mapping, dac)
 
     lowCurrent *= -1.
     highCurrent *= -1.
 
-    stepSize = (highCurrent - lowCurrent)/(len(scanValues)-1)
+    stepSize = (highCurrent - lowCurrent)/(len(TDC_Scan_Values)-1)
     lowCurrent -= stepSize/2.
     highCurrent += stepSize/2.
 
-    tdcCurrents = TH1F("tdc_turnon_current","tdc_turnon_current",len(scanValues),lowCurrent, highCurrent)
+    tdcCurrents = TH1F("tdc_turnon_current","tdc_turnon_current",len(TDC_Scan_Values),lowCurrent, highCurrent)
 
     for i in mapping:
         for j in range(3):
             linkList += [i*3+j]
         for j in range(12):
             histoList += [i*12+j]
-            tdcHist['mean'][i*12+j] = TH1F("tdcMeanVal_vs_lsb_h%i"%(i*12+j),"tdcMeanVal_vs_lsb_h%i"%(i*12+j),len(scanValues),lowCurrent, highCurrent)
-            tdcHist['mode'][i*12+j] = TH1F("tdcModeVal_vs_lsb_h%i"%(i*12+j),"tdcModeVal_vs_lsb_h%i"%(i*12+j),len(scanValues),lowCurrent, highCurrent)
-            tdcHist['full'][i*12+j] = TH2F("tdcVal_vs_lsb_h%i"%(i*12+j),"tdcVal_vs_lsb_h%i"%(i*12+j),        len(scanValues),lowCurrent, highCurrent, 64,0,64)
+            tdcHist['mean'][i*12+j] = TH1F("tdcMeanVal_vs_lsb_h%i"%(i*12+j),"tdcMeanVal_vs_lsb_h%i"%(i*12+j),len(TDC_Scan_Values),lowCurrent, highCurrent)
+            tdcHist['mode'][i*12+j] = TH1F("tdcModeVal_vs_lsb_h%i"%(i*12+j),"tdcModeVal_vs_lsb_h%i"%(i*12+j),len(TDC_Scan_Values),lowCurrent, highCurrent)
+            tdcHist['full'][i*12+j] = TH2F("tdcVal_vs_lsb_h%i"%(i*12+j),"tdcVal_vs_lsb_h%i"%(i*12+j),        len(TDC_Scan_Values),lowCurrent, highCurrent, 64,0,64)
 
     print linkList
     print histoList
-    for lsb in scanValues:
+    for lsb in TDC_Scan_Values:
         setDAC(lsb)
         getGoodLinks(ts,orbitDelay, GTXreset = 1, CDRreset = 1)
         for i_link in linkList:

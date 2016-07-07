@@ -46,8 +46,7 @@ def setup(ts, range=0, useFixRange=True, useCalibrationMode=True):
 	for line in output['output']:
 		print line['cmd'], line['result']
 
-def setDAC( dacLSB = 0, dacChannel = -1):
-	os.system("export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib; ~/../tiroy/mcc-libhid/dacQinjector  -o {0} -c {1}".format(dacLSB, dacChannel) )
+from DAC import *
 
 def initLinks(ts):
 	cmds = [
