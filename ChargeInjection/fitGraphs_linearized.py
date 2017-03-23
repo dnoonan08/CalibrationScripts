@@ -30,7 +30,7 @@ Varlimits = [[[2.5,4.0],[-50,100]],
 
 lineColors = [kRed, kBlue, kGreen+2, kCyan] 
 
-def doFit_combined(graphList, qieRange, saveGraph = False, qieNumber = 0, qieUniqueID = "", useCalibrationMode = True, outputDir = ''):
+def doFit_combined(graphList, qieRange, saveGraph = False, qieNumber = 0, qieUniqueID = "", useCalibrationMode = True, outputDir = '',saveOnlyComb = False):
 
 	fitLines = []
 	slopes = []
@@ -38,15 +38,18 @@ def doFit_combined(graphList, qieRange, saveGraph = False, qieNumber = 0, qieUni
 
 	pedestal = [-13.33]*4
 	linearizedGraphList = []
+
+	print graphList
+
         for i_range in range(4):
 		vOffset = i_range*64
 		graphs = graphList[i_range]
 		if graphs==None: 
 			fitLines.append(None)
 			continue
-		else:
-			
+		else:			
 			fitLines.append([])
+
 		for i_capID in range(4):
 			nominalgraph = graphs[i_capID]
 			nominalgraph.SetNameTitle('%s_range_%i'%(nominalgraph.GetName(),i_range),'%s_range_%i'%(nominalgraph.GetName(),i_range))
@@ -90,11 +93,14 @@ def doFit_combined(graphList, qieRange, saveGraph = False, qieNumber = 0, qieUni
 				graph.GetEX()[n] = _ey
 				graph.GetY()[n] = _x
 				graph.GetEY()[n] = _ex
+			graph.GetXaxis().SetTitle("Charge (fC)")
+			graph.GetYaxis().SetTitle("Linearized ADC")
 
 			
 			graph.Fit("pol1","0")
 			linearizedGraphList.append(graph)
 			fitLine = graph.GetFunction("pol1")
+			fitLine.SetNameTitle("fit_%s"%graph.GetName(),"fit_%s"%graph.GetName())
 			fitLines[-1].append(fitLine)
 
 			if saveGraph:
@@ -111,6 +117,12 @@ def doFit_combined(graphList, qieRange, saveGraph = False, qieNumber = 0, qieUni
 				saveName += qieUniqueID
 				if not os.path.exists(saveName):
 					os.system("mkdir -p %s"%saveName)
+					
+				xmin = graph.GetXaxis().GetXmin()
+				xmax = graph.GetXaxis().GetXmax()
+				ymin = graph.GetYaxis().GetXmin()
+				ymax = graph.GetYaxis().GetXmax()
+
 				saveName += "/ADCvsfC"
 				if qieNumber != 0: 
 					qieInfo += ", QIE " + str(qieNumber)
@@ -124,6 +136,8 @@ def doFit_combined(graphList, qieRange, saveGraph = False, qieNumber = 0, qieUni
 				graph.GetYaxis().SetTitle("Charge (fC)")
 				graph.GetYaxis().SetTitleOffset(1.2)
 				graph.GetXaxis().SetTitle("ADC")
+
+			if saveGraph and not saveOnlyComb:
 
 				xVals = graph.GetX()
 				exVals = graph.GetEX()
@@ -158,7 +172,7 @@ def doFit_combined(graphList, qieRange, saveGraph = False, qieNumber = 0, qieUni
 				xErrorsArray = array('d',[0]*len(x))
 
 				
-				print i_range, i_capID, N, xArray, resArray
+#				print i_range, i_capID, N, xArray, resArray
 				residualGraphX = TGraphErrors(N,xArray,resArray, xErrorsArray, resErrArray)
 
 				residualGraphX.SetTitle("")
@@ -178,10 +192,10 @@ def doFit_combined(graphList, qieRange, saveGraph = False, qieNumber = 0, qieUni
 				fitLine.SetLineWidth(2)
 				fitLine.Draw("same")
 
-				xmin = graph.GetXaxis().GetXmin()
-				xmax = graph.GetXaxis().GetXmax()
-				ymin = graph.GetYaxis().GetXmin()
-				ymax = graph.GetYaxis().GetXmax()
+				# xmin = graph.GetXaxis().GetXmin()
+				# xmax = graph.GetXaxis().GetXmax()
+				# ymin = graph.GetYaxis().GetXmin()
+				# ymax = graph.GetYaxis().GetXmax()
 
 				text = TPaveText(xmin + (xmax-xmin)*.2, ymax - (ymax-ymin)*(.3),xmin + (xmax-xmin)*.6,ymax-(ymax-ymin)*.1)
 				text.SetFillColor(kWhite)
@@ -225,27 +239,32 @@ def doFit_combined(graphList, qieRange, saveGraph = False, qieNumber = 0, qieUni
 
 				c1.SaveAs(saveName)
 
-	params = []
+	params = [[],[],[],[]]
 	for irange in range(4):
 		if fitLines[irange]==None:
 			for icapID in range(4):
-				params.append([-1,-1])
+				params[irange].append([-1,-1])
 			continue
-		params.append([])
 		for icapID in range(4):
 			offset = fitLines[irange][icapID].GetParameter(0)
 			slope = fitLines[irange][icapID].GetParameter(1)
-			params[-1].append([slope,offset])
+			params[irange].append([slope,offset])
 
-	outputTGraphs = TFile(outputDir+"/adcVSfc_graphs.root","update")
 
+	outputTGraphs = TFile(outputDir.replace("outputPlots","")+"/fitResults_%s.root"%qieUniqueID,"update")
+
+	for graph in linearizedGraphList:
+		outputTGraphs.cd("LinadcVsCharge")
+		graph.Write()
 	for i_range in range(4):
 		if graphList[i_range]==None: continue
 		print 'Writing'
 		for graph in graphList[i_range]:
+			outputTGraphs.cd("adcVsCharge")
 			graph.Write()
 		for fitLine in fitLines[i_range]:
-			fitLine.SetNpx(10000)
+			fitLine.SetNpx(1000)
+			outputTGraphs.cd("fitLines")
 			fitLine.Write()
 
 		if saveGraph:
@@ -253,6 +272,7 @@ def doFit_combined(graphList, qieRange, saveGraph = False, qieNumber = 0, qieUni
 			c1 = TCanvas()
 			slopes = []
 			offsets = []
+
 			for i_capID in range(4):
 				graph = graphList[i_range][i_capID]
 				fitLine = fitLines[i_range][i_capID]

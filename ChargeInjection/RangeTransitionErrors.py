@@ -10,7 +10,7 @@ import sys
 
 import sqlite3
 
-sys.path.insert(0, '../../hcal_teststand_scripts')
+sys.path.insert(0, '../../AcceptanceTests/hcal_teststand_scripts')
 from hcal_teststand.uhtr import *
 from hcal_teststand import *
 from hcal_teststand.hcal_teststand import *
@@ -53,7 +53,7 @@ def check_qie_status(ts, crate, slot):
 	commands.append("get HF{0}-{1}-QIE[1-24]_FixRange".format(crate,slot))
 	commands.append("get HF{0}-{1}-QIE[1-24]_RangeSet".format(crate,slot))
 	commands.append("get HF{0}-{1}-QIE[1-24]_CalMode".format(crate,slot))
-	raw_output = ngccm.send_commands_parsed(ts, commands)['output']	
+	raw_output = ngfec.send_commands_parsed(ts, cmds=commands,script=True)['output']	
 
 	results = {}
 	goodValues = True
@@ -72,46 +72,58 @@ def check_qie_status(ts, crate, slot):
 
 def getGoodQIESetting(ts,fe_crates, qie_slots, qieRange=0, useFixRange= False, useCalibrationMode = False):
 
+	cmds = []
 	for i_crate in fe_crates:
 		for i_slot in qie_slots:
 			print 'Set Fixed Range and Calibration mode Crate %i Slot %i' %(i_crate,i_slot)
-			set_fix_range_all(ts, i_crate, i_slot, useFixRange, int(qieRange))
-			set_cal_mode_all(ts, i_crate, i_slot, useCalibrationMode)
-	goodStatus = True
-	problemSlots = []
-	sleep(3)
-	for i_crate in fe_crates:
-		for i_slot in qie_slots:
-			qieGood, result, problems = check_qie_status(ts, i_crate, i_slot)
-			if not qieGood:
-				goodStatus = False
-				problemSlots.append( (i_crate, i_slot) )
-				print problems
-	attempts = 0
-	while not goodStatus and attempts < 10:
-		goodStatus = True
-		newProblemSlots = []
-		for i_crate, i_slot in problemSlots:
-			print 'Retry Set Fixed Range and Calibration mode Crate %i Slot %i' %(i_crate,i_slot)
-			set_fix_range_all(ts, i_crate, i_slot, useFixRange, int(qieRange))
-			set_cal_mode_all(ts, i_crate, i_slot, useCalibrationMode)
-			sleep(3)
-			qieGood, result,problems = check_qie_status(ts, i_crate, i_slot)
-			if not qieGood:
-				goodStatus = False
-				newProblemSlots.append( (i_crate, i_slot) )
-				print problems
-			else:
-				for reg in result:
-					print reg, result[reg]
-			
-		attempts += 1
-		problemSlots = newProblemSlots
+			cmds += ['put HF%i-%i-QIE[1-24]_FixRange 24*%i'%(int(i_crate),int(i_slot),int(useFixRange)),
+				 'put HF%i-%i-QIE[1-24]_RangeSet 24*%i'%(int(i_crate),int(i_slot),int(qieRange)),
+				 'put HF%i-%i-QIE[1-24]_CalMode 24*%i'%(int(i_crate),int(i_slot),int(useCalibrationMode))
+				 ]
+			raw_output = ngfec.send_commands(ts, cmds=cmds, script=True)
+			sleep(1)
+# def getGoodQIESetting(ts,fe_crates, qie_slots, qieRange=0, useFixRange= False, useCalibrationMode = False):
 
-	if not goodStatus:
-		print "Can't get good QIE status"
-		print "Exiting"
-		sys.exit()
+# 	for i_crate in fe_crates:
+# 		for i_slot in qie_slots:
+# 			print 'Set Fixed Range and Calibration mode Crate %i Slot %i' %(i_crate,i_slot)
+# 			set_fix_range_all(ts, i_crate, i_slot, useFixRange, int(qieRange))
+# 			set_cal_mode_all(ts, i_crate, i_slot, useCalibrationMode)
+# 	goodStatus = True
+# 	problemSlots = []
+# 	sleep(3)
+# 	for i_crate in fe_crates:
+# 		for i_slot in qie_slots:
+# 			qieGood, result, problems = check_qie_status(ts, i_crate, i_slot)
+# 			if not qieGood:
+# 				goodStatus = False
+# 				problemSlots.append( (i_crate, i_slot) )
+# 				print problems
+# 	attempts = 0
+# 	while not goodStatus and attempts < 10:
+# 		goodStatus = True
+# 		newProblemSlots = []
+# 		for i_crate, i_slot in problemSlots:
+# 			print 'Retry Set Fixed Range and Calibration mode Crate %i Slot %i' %(i_crate,i_slot)
+# 			set_fix_range_all(ts, i_crate, i_slot, useFixRange, int(qieRange))
+# 			set_cal_mode_all(ts, i_crate, i_slot, useCalibrationMode)
+# 			sleep(3)
+# 			qieGood, result,problems = check_qie_status(ts, i_crate, i_slot)
+# 			if not qieGood:
+# 				goodStatus = False
+# 				newProblemSlots.append( (i_crate, i_slot) )
+# 				print problems
+# 			else:
+# 				for reg in result:
+# 					print reg, result[reg]
+			
+# 		attempts += 1
+# 		problemSlots = newProblemSlots
+
+# 	if not goodStatus:
+# 		print "Can't get good QIE status"
+# 		print "Exiting"
+# 		sys.exit()
 
 
 def get_transitionErrors(file_in = "", lowrange = 0):
@@ -138,10 +150,11 @@ def transitionScan(qieRange, outputDirectory = '', runScan = True, orbitDelay=or
 	if not os.path.exists(outputDirectory+"/TransitionScan_%i/"%(qieRange)):
 		os.system("mkdir -p "+outputDirectory+"/TransitionScan_%i/"%(qieRange))
 
-	ts = teststand("904")
+	ts = teststand("904cal",f="/nfshome0/dnoonan/AcceptanceTests/hcal_teststand_scripts/configuration/teststands.txt")
 
 
 	if runScan:
+		
 		getGoodQIESetting(ts, ts.fe_crates, ts.qie_slots[0], int(0), useFixRange=False, useCalibrationMode=True)
 
 		# for i_crate in ts.fe_crates:
@@ -158,7 +171,7 @@ def transitionScan(qieRange, outputDirectory = '', runScan = True, orbitDelay=or
 		if runScan:
 			setDAC(lsb)
 			getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = GTXreset, CDRreset = CDRreset)
-			fName = uhtr.get_histo(ts,uhtr_slot=ts.uhtr_slots[0], n_orbits=10000, sepCapID=0, file_out=outputDirectory+"/TransitionScan_%i/"%(qieRange)+histName)
+			fName = uhtr.get_histo(ts,crate=ts.be_crates[0],uhtr_slot=ts.uhtr_slots[0], n_orbits=10000, sepCapID=0, file_out=outputDirectory+"/TransitionScan_%i/"%(qieRange)+histName)
 		else:
 			fName = outputDirectory+"/TransitionScan_%i/"%(qieRange)+histName
 		errorRate[lsb] = get_transitionErrors(fName, qieRange)

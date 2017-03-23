@@ -148,12 +148,14 @@ def makeADCvsfCgraph(lsbList, values, histo_list = range(0,96), cardMap = nomina
         for i_lsb in lsbList:
 
             query = ( pigtail, card, dac, i_lsb, i_lsb)
-            cur_Slopes.execute('SELECT offset, slope FROM CARDCAL WHERE pigtail=? AND card=? AND dac=? AND rangehigh>=? AND rangelow<=?', query )
+            cur_Slopes.execute('SELECT offset, slope, offsetErr, slopeErr FROM CARDCAL WHERE pigtail=? AND card=? AND dac=? AND rangehigh>=? AND rangelow<=?', query )
             result_t = cur_Slopes.fetchone()
             print query
             print result_t
             offset = result_t[0]
             slope = result_t[1]
+            offsetErr = result_t[0]
+            slopeErr = result_t[1]
             print "Slope = "+str(slope) + " Offset= "+str(offset)
 
             current = i_lsb*slope + offset
@@ -183,7 +185,7 @@ def makeADCvsfCgraph(lsbList, values, histo_list = range(0,96), cardMap = nomina
 def makeADCvsfCgraphSepCapID(lsbList, values, histo_list = range(0,96), cardMap = nominalMapping, dac='01'):
 #    conCardMap = createDB_HFcard(True)
 
-    conSlopes = lite.connect("../InjectionBoardCalibration/SlopesOffsets.db")
+    conSlopes = lite.connect("../InjectionBoardCalibration/SlopesOffsetsWithErrors.db")
 
     graphs = {}
     for ih in histo_list:
@@ -222,16 +224,21 @@ def makeADCvsfCgraphSepCapID(lsbList, values, histo_list = range(0,96), cardMap 
         
 
             query = ( pigtail, card, dac, i_lsb, i_lsb)
-            cur_Slopes.execute('SELECT offset, slope FROM CARDCAL WHERE pigtail=? AND card=? AND dac=? AND rangehigh>=? AND rangelow<=?', query )
+            cur_Slopes.execute('SELECT offset, slope, offsetErr, slopeErr FROM CARDCAL WHERE pigtail=? AND card=? AND dac=? AND rangehigh>=? AND rangelow<=?', query )
             result_t = cur_Slopes.fetchone()
             # print query
             # print result_t
             offset = result_t[0]
             slope = result_t[1]
+            offsetErr = result_t[2]
+            slopeErr = result_t[3]
             # print "Slope = "+str(slope) + " Offset= "+str(offset)
 
             current = i_lsb*slope + offset
+            currentUnc = ((i_lsb*slopeErr)**2+offsetErr**2)**.5
             charge = current*25e6
+            chargeUnc = currentUnc*25e6
+            
 
             
             # print ih, values[i_lsb][ih]['link']*4 + values[i_lsb][ih]['channel']
@@ -241,16 +248,16 @@ def makeADCvsfCgraphSepCapID(lsbList, values, histo_list = range(0,96), cardMap 
             for i_capID in range(4):
                 mean_.append(values[i_lsb][ih]['mean'][i_capID])
                 rms_.append(values[i_lsb][ih]['rms'][i_capID])
-            QIE_values.append([i_lsb,-1*charge,mean_,rms_])
+            QIE_values.append([i_lsb,-1*charge,chargeUnc,mean_,rms_])
 
         QIE_values.sort()
 
         graphs[ih] = []
         for i_capID in range(4):
             fc_array = array('d',[b[1] for b in QIE_values])
-            fCerror_array = array('d',[0]*len(fc_array))
-            adc_array = array('d',[b[2][i_capID] for b in QIE_values])
-            adcerr_array = array('d',[b[3][i_capID] for b in QIE_values])
+            fCerror_array = array('d',[b[2] for b in QIE_values])
+            adc_array = array('d',[b[3][i_capID] for b in QIE_values])
+            adcerr_array = array('d',[b[4][i_capID] for b in QIE_values])
 
             ADCvsfC =  TGraphErrors(len(fc_array),adc_array , fc_array,adcerr_array,fCerror_array)
             ADCvsfC.SetNameTitle("ADCvsfC_%i_capID_%i"%(ih,i_capID),"ADCvsfC_%i_capID_%i"%(ih,i_capID))

@@ -4,61 +4,11 @@ import sqlite3
 gROOT.SetBatch(kTRUE)
 
 def fillHistos(values):
-    maxslopes = [max([x[-2] for x in values if x[3]==0]+[-1]),
-                 max([x[-2] for x in values if x[3]==1]+[-1]),
-                 max([x[-2] for x in values if x[3]==2]+[-1]),
-                 max([x[-2] for x in values if x[3]==3]+[-1]),
-                 ]
 
-    minslopes = [min([x[-2] for x in values if x[3]==0]+[99999.]),
-                 min([x[-2] for x in values if x[3]==1]+[99999.]),
-                 min([x[-2] for x in values if x[3]==2]+[99999.]),
-                 min([x[-2] for x in values if x[3]==3]+[99999.]),
-                 ]
-
-    maxoffsets = [max([x[-1] for x in values if x[3]==0]+[-9.99e+10]),
-                  max([x[-1] for x in values if x[3]==1]+[-9.99e+10]),
-                  max([x[-1] for x in values if x[3]==2]+[-9.99e+10]),
-                  max([x[-1] for x in values if x[3]==3]+[-9.99e+10]),
-                  ]
-    
-    minoffsets = [min([x[-1] for x in values if x[3]==0]+[99999.]),
-                  min([x[-1] for x in values if x[3]==1]+[99999.]),
-                  min([x[-1] for x in values if x[3]==2]+[99999.]),
-                  min([x[-1] for x in values if x[3]==3]+[99999.]),
-                  ]
-
-
-#     print minslopes
-#     print maxslopes
-
-#     print minoffsets
-#     print maxoffsets
-
-    hists = {0:{'all':[TH1F("Range0Slopes","Range0Slopes",50,minslopes[0]-.1, maxslopes[0]+.1), TH1F("Range0Offsets","Range0Offsetss",50,-20,-100)],
-                0:[TH1F("Range0SlopesCapID0","Range0SlopesCapID0",50,minslopes[0]-.1, maxslopes[0]+.1), TH1F("Range0OffsetsCapID0","Range0OffsetsCapID0",50,-20,-100)],
-                1:[TH1F("Range0SlopesCapID1","Range0SlopesCapID1",50,minslopes[0]-.1, maxslopes[0]+.1), TH1F("Range0OffsetsCapID1","Range0OffsetsCapID1",50,-20,-100)],
-                2:[TH1F("Range0SlopesCapID2","Range0SlopesCapID2",50,minslopes[0]-.1, maxslopes[0]+.1), TH1F("Range0OffsetsCapID2","Range0OffsetsCapID2",50,-20,-100)],
-                3:[TH1F("Range0SlopesCapID3","Range0SlopesCapID3",50,minslopes[0]-.1, maxslopes[0]+.1), TH1F("Range0OffsetsCapID3","Range0OffsetsCapID3",50,-20,-100)],
-                },
-             1:{'all':[TH1F("Range1Slopes","Range1Slopes",50,minslopes[1]-.5, maxslopes[1]+.5), TH1F("Range1Offsets","Range1Offsetss",50,-20,-100)],
-                0:[TH1F("Range1SlopesCapID0","Range1SlopesCapID0",50,minslopes[1]-.5, maxslopes[1]+.5), TH1F("Range1OffsetsCapID0","Range1OffsetsCapID0",50,-20,-100)],
-                1:[TH1F("Range1SlopesCapID1","Range1SlopesCapID1",50,minslopes[1]-.5, maxslopes[1]+.5), TH1F("Range1OffsetsCapID1","Range1OffsetsCapID1",50,-20,-100)],
-                2:[TH1F("Range1SlopesCapID2","Range1SlopesCapID2",50,minslopes[1]-.5, maxslopes[1]+.5), TH1F("Range1OffsetsCapID2","Range1OffsetsCapID2",50,-20,-100)],
-                3:[TH1F("Range1SlopesCapID3","Range1SlopesCapID3",50,minslopes[1]-.5, maxslopes[1]+.5), TH1F("Range1OffsetsCapID3","Range1OffsetsCapID3",50,-20,-100)],
-                },
-             2:{'all':[TH1F("Range2Slopes","Range2Slopes",50,minslopes[2]-5., maxslopes[2]+5.), TH1F("Range2Offsets","Range2Offsetss",50,-20,-100)],
-                0:[TH1F("Range2SlopesCapID0","Range2SlopesCapID0",50,minslopes[2]-5., maxslopes[2]+5.), TH1F("Range2OffsetsCapID0","Range2OffsetsCapID0",50,-20,-100)],
-                1:[TH1F("Range2SlopesCapID1","Range2SlopesCapID1",50,minslopes[2]-5., maxslopes[2]+5.), TH1F("Range2OffsetsCapID1","Range2OffsetsCapID1",50,-20,-100)],
-                2:[TH1F("Range2SlopesCapID2","Range2SlopesCapID2",50,minslopes[2]-5., maxslopes[2]+5.), TH1F("Range2OffsetsCapID2","Range2OffsetsCapID2",50,-20,-100)],
-                3:[TH1F("Range2SlopesCapID3","Range2SlopesCapID3",50,minslopes[2]-5., maxslopes[2]+5.), TH1F("Range2OffsetsCapID3","Range2OffsetsCapID3",50,-20,-100)],
-                },
-             3:{'all':[TH1F("Range3Slopes","Range3Slopes",50,minslopes[3]-5., maxslopes[3]+5.), TH1F("Range3Offsets","Range3Offsetss",50,-20,-100)],
-                0:[TH1F("Range3SlopesCapID0","Range3SlopesCapID0",50,minslopes[3]-5., maxslopes[3]+5.), TH1F("Range3OffsetsCapID0","Range3OffsetsCapID0",50,-20,-100)],
-                1:[TH1F("Range3SlopesCapID1","Range3SlopesCapID1",50,minslopes[3]-5., maxslopes[3]+5.), TH1F("Range3OffsetsCapID1","Range3OffsetsCapID1",50,-20,-100)],
-                2:[TH1F("Range3SlopesCapID2","Range3SlopesCapID2",50,minslopes[3]-5., maxslopes[3]+5.), TH1F("Range3OffsetsCapID2","Range3OffsetsCapID2",50,-20,-100)],
-                3:[TH1F("Range3SlopesCapID3","Range3SlopesCapID3",50,minslopes[3]-5., maxslopes[3]+5.), TH1F("Range3OffsetsCapID3","Range3OffsetsCapID3",50,-20,-100)],
-                },
+    hists = {0:[TH1F("Range0Slopes","Range0Slopes",50,.25,.35), TH1F("Range0Offsets","Range0Offsets",50,-10,10)],
+             1:[TH1F("Range1Slopes","Range1Slopes",50,.25,.35), TH1F("Range1Offsets","Range1Offsets",50,-10,10)],
+             2:[TH1F("Range2Slopes","Range2Slopes",50,.25,.35), TH1F("Range2Offsets","Range2Offsets",50,-10,10)],
+             3:[TH1F("Range3Slopes","Range3Slopes",50,.25,.35), TH1F("Range3Offsets","Range3Offsets",50,-10,10)],
              }    
     
     for entry in values:
@@ -72,13 +22,10 @@ def fillHistos(values):
     return hists
 
 def graphParamDist(paramFileName):
-    if 'qieCalibrationParameters.db' in paramFileName:
-        outputDirectory = paramFileName.split('qieCalibrationParameters.db')[0]
-    else:
-        outputDirectory = paramFileName + "/"
 
+    outputDirectory = paramFileName.split('qieCalibrationParam')[0]
 
-    paramDB = sqlite3.connect(outputDirectory+'qieCalibrationParameters.db')
+    paramDB = sqlite3.connect(paramFileName)
     cursor = paramDB.cursor()
 
     
@@ -90,15 +37,33 @@ def graphParamDist(paramFileName):
         print uniqueID
         parameterValues = cursor.execute("select * from qieparams where id = ?", [str(uniqueID)]).fetchall()
 
-        hists = fillHistos(parameterValues)
+        range0MinMax = cursor.execute("select min(slope), max(slope), min(offset), max(offset) from qieparams where id = ? and range=?", [str(uniqueID),0]).fetchone()
+        range1MinMax = cursor.execute("select min(slope), max(slope), min(offset), max(offset) from qieparams where id = ? and range=?", [str(uniqueID),1]).fetchone()
+        range2MinMax = cursor.execute("select min(slope), max(slope), min(offset), max(offset) from qieparams where id = ? and range=?", [str(uniqueID),2]).fetchone()
+        range3MinMax = cursor.execute("select min(slope), max(slope), min(offset), max(offset) from qieparams where id = ? and range=?", [str(uniqueID),3]).fetchone()
 
-        outputParamRootFile = TFile(outputDirectory+"calibrationParams_%s.root"%str(uniqueID).replace(" ","_"),'recreate')
+        hists = {0:[TH1F("Range0Slopes","Range0Slopes",50,range0MinMax[0]*0.8,range0MinMax[1]*1.2), TH1F("Range0Offsets","Range0Offsets",50,range0MinMax[2]*1.2, range0MinMax[3]*1.2)],
+                 1:[TH1F("Range1Slopes","Range1Slopes",50,range1MinMax[0]*0.8,range1MinMax[1]*1.2), TH1F("Range1Offsets","Range1Offsets",50,range1MinMax[2]*1.2, range1MinMax[3]*1.2)],
+                 2:[TH1F("Range2Slopes","Range2Slopes",50,range2MinMax[0]*0.8,range2MinMax[1]*1.2), TH1F("Range2Offsets","Range2Offsets",50,range2MinMax[2]*1.2, range2MinMax[3]*1.2)],
+                 3:[TH1F("Range3Slopes","Range3Slopes",50,range3MinMax[0]*0.8,range3MinMax[1]*1.2), TH1F("Range3Offsets","Range3Offsets",50,range3MinMax[2]*1.2, range3MinMax[3]*1.2)],
+                 }    
+    
+        for entry in parameterValues:
+            qieID, serial,  qieNum, i_capID, qieRange, directory, timestamp, slope, offset = entry
+            hists[qieRange][0].Fill(slope)
+            hists[qieRange][1].Fill(offset)
+            hists[qieRange][0].Fill(slope)
+            hists[qieRange][1].Fill(offset)
+
+
+        outputParamRootFile = TFile("%s/fitResults_%s.root"%(outputDirectory, uniqueID.replace(" ","_")),"update")
+
+        outputParamRootFile.cd("SummaryPlots")
 
         # print hists
         for i_range in hists:
-            for i_capID in hists[i_range]:
-                hists[i_range][i_capID][0].Write()
-                hists[i_range][i_capID][1].Write()
+            hists[i_range][0].Write()
+            hists[i_range][1].Write()
             
         outputParamRootFile.Close()
         c1 = TCanvas()
@@ -106,23 +71,23 @@ def graphParamDist(paramFileName):
         c1.Divide(2,2)
 
         c1.cd(1)
-        hists[0]['all'][0].Draw()
+        hists[0][0].Draw()
         c1.cd(2)
-        hists[1]['all'][0].Draw()
+        hists[1][0].Draw()
         c1.cd(3)
-        hists[2]['all'][0].Draw()
+        hists[2][0].Draw()
         c1.cd(4)
-        hists[3]['all'][0].Draw()
+        hists[3][0].Draw()
         c1.SaveAs(outputDirectory+"Slopes_%s.pdf"%str(uniqueID).replace(" ","_"))
 
         c1.cd(1)
-        hists[0]['all'][1].Draw()
+        hists[0][1].Draw()
         c1.cd(2)
-        hists[1]['all'][1].Draw()
+        hists[1][1].Draw()
         c1.cd(3)
-        hists[2]['all'][1].Draw()
+        hists[2][1].Draw()
         c1.cd(4)
-        hists[3]['all'][1].Draw()
+        hists[3][1].Draw()
         c1.SaveAs(outputDirectory+"Offsets_%s.pdf"%str(uniqueID).replace(" ","_"))
     
 

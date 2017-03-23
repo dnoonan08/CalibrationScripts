@@ -4,7 +4,7 @@ import subprocess
 from time import sleep
 
 def setDAC( dacLSB = 0, dacChannel = -1):
-	os.system("export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib; ~/../tiroy/mcc-libhid/dacQinjector  -o {0} -c {1}".format(dacLSB, dacChannel) )
+	os.system("export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib; /nfshome0/dnoonan/mcc-libhid/dacQinjector  -o {0} -c {1}".format(dacLSB, dacChannel) )
 	sleep(2)
 
 
@@ -12,7 +12,7 @@ def getDACNumber():
 	count = 0
 	foundDevice = False
 	while not foundDevice and count < 5:
-		command = "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib; ~/../tiroy/mcc-libhid/dacQinjector  -o 0"
+		command = "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib; /nfshome0/dnoonan/mcc-libhid/dacQinjector  -o 0"
 		output = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE).communicate()[0]
 
 		outLines = output.split('\n')
