@@ -24,7 +24,7 @@ def fillFitUncertaintyHists(summaryFile):
 #            print 'HERE', slopeUnc
 #            print k
             slopeUnc = 0.0499
-        if slopeUnc > 0.01:
+        if (slopeUnc > 0.01 and not 'range_3' in fitline.GetName()) or slopeUnc > 0.02:
             print '*'*40
             print '*'*40
             print '*'*40
