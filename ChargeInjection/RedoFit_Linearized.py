@@ -10,6 +10,8 @@ from adcTofC import *
 from fitGraphs_linearized import *
 from ROOT import *
 
+from getPedestals import *
+
 #from DAC import *
 
 # sys.path.insert(0, '../../hcal_teststand_scripts')
@@ -25,8 +27,12 @@ from GraphParamDist import *
 import sqlite3 as lite
 
 from SerialNumberMap import *
+from FitUncertaintyPlots import *
 
 from RangeTransitionErrors import *
+
+UID_SN_DB = sqlite3.connect("/nfshome0/dnoonan/serialNumberToUIDmap.db")
+serialNumcursor = UID_SN_DB.cursor()
 
 orbitDelay = 3507
 GTXreset = 1
@@ -184,9 +190,10 @@ def QIECalibrationScan(options):
 	allCardsHaveSerialNumber = True
 	for i_slot in injectionMapping:
 		uID = injectionMapping[i_slot]['id']		
-		if not uID in mapUIDtoSerial:
+		sernumber = serialNumcursor.execute("select serial from UIDtoSerialNumber where uid=?",(uID,)).fetchone()
+		if not type(sernumber)==type(tuple()):
 			print 'Missing serial number for card %s' %uID
-			print 'Please edit SerialNumberMap.py to include this card'
+			print 'Rerun mapping routine on this crate'
 			allCardsHaveSerialNumber = False
 
 	if not allCardsHaveSerialNumber:
@@ -260,11 +267,51 @@ def QIECalibrationScan(options):
 
 		graphs[qieRange] = makeADCvsfCgraphSepCapID(scanRange,results[qieRange], histoList, cardMap = simpleCardMap, dac=dacNum)	
 
+        dirStructure = outputDirectory.split('/')
+	for value in dirStructure:
+                if '2016' in value:
+                        date = value
+                if 'Run' in value:
+                        run = value
+	_filePeds = TFile("%s/PedestalPlots/pedestalMeasurement_%s_%s.root"%(outputDirectory,date, run),"recreate")
+	_filePeds.Close()
 
-		
+	pedestalVals = getPedestals(graphs[0], histoList, outputDirectory, date, run)
+
+	rangeOutputDirectory = outputDirectory+'/outputPlots/'
+	os.system( "mkdir -pv "+rangeOutputDirectory )
+
+	linkToUIDMap = {}
+	uID_list = []
+	for i in injectionMapping:
+		tempLinkVal = injectionMapping[i]['link']
+		linkVal = tempLinkVal-(tempLinkVal%3)
+		uID = injectionMapping[i]['id'].replace(' ','_')
+		if not uID in uID_list:
+			uID_list.append(uID)
+		linkToUIDMap[linkVal]=uID
+	qieParams = {}
+	cursor = {}
+	for uID in uID_list:
+		outputGraphFile = TFile("%s/fitResults_%s.root"%(outputDirectory, uID),"recreate")
+		DataOutputDirName = TNamed("DataFilesLocation",os.path.abspath(outputDirectory))
+		DataOutputDirName.Write()
+		outputGraphFile.mkdir("adcVsCharge")
+		outputGraphFile.mkdir("LinadcVsCharge")
+		outputGraphFile.mkdir("TDC")
+		outputGraphFile.mkdir("fitLines")
+		outputGraphFile.mkdir("SummaryPlots")
+		outputGraphFile.Close()
+	
+		qieParams[uID] = lite.connect(outputDirectory+"qieCalibrationParameters_%s.db"%(uID))
+		cursor[uID] = qieParams[uID].cursor()
+		cursor[uID].execute("create table if not exists qieparams(id STRING, serial INT, qie INT, capID INT, range INT, directoryname STRING, date STRING, slope REAL, offset REAL)")
+
+
+
 	for ih in histoList:
 		qieID = injectionMapping[simpleCardMap[int(ih/12)]]['id']
-		serial = mapUIDtoSerial[qieID]
+		serial = serialNumcursor.execute("select serial from UIDtoSerialNumber where uid=?",(qieID,)).fetchone()[0]#mapUIDtoSerial[qieID
 		qieNum = ih%24 + 1
 
 		graphList = []
@@ -286,10 +333,7 @@ def QIECalibrationScan(options):
 			graphList.append(None)
 
 # 		print graphList
-		rangeOutputDirectory = outputDirectory+'/outputPlots/'
-		os.system( "mkdir -pv "+rangeOutputDirectory )
-
-		params = doFit_combined(graphList,int(qieRange), True, qieNum, qieID.replace(' ', '_'),options.useCalibrationMode, rangeOutputDirectory)
+		params = doFit_combined(graphList,int(qieRange), options.saveGraphs, qieNum, qieID.replace(' ', '_'),options.useCalibrationMode, rangeOutputDirectory,pedestal=pedestalVals[ih])
 		for i_range in graphs:
 			for i_capID in range(4):
 # 				print params, i_range, i_capID
@@ -348,6 +392,23 @@ def QIECalibrationScan(options):
 		qieTestParamsLocal.commit()
 		qieTestParamsLocal.close()
 
+        problemCards = []
+	for uID in uID_list:
+		outputFileName = "%s/fitResults_%s.root"%(outputDirectory, uID)
+                badChannels = fillFitUncertaintyHists(outputFileName)
+		if len(badChannels) > 0:
+			slot=-1
+			problemCards.append([uID.replace('_',' '), slot, badChannels])
+
+        for card in problemCards:
+		print '*'*40
+		print 'PROBLEM WITH FIT IN QIE CARD'
+		print '    UnID: ',card[0]
+		print '    Slot: ',card[1]
+		print '    BadChannels: ', card[2]
+	if len(problemCards)==0:
+		print 'All cards calibrated with no problems'
+
 		
 if __name__ == "__main__":
 	parser = OptionParser()
@@ -371,6 +432,8 @@ if __name__ == "__main__":
 			  help="Skip the range transition scans")
 	parser.add_option("--histoList", dest="histoList",default=None,
 			  help="List of channels to run")
+	parser.add_option("--saveGraphs", action="store_true",dest="saveGraphs",default=False,
+			  help="Save pdfs of graphs")
 
 	(options, args) = parser.parse_args()
 

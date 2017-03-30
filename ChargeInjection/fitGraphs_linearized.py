@@ -30,13 +30,13 @@ Varlimits = [[[2.5,4.0],[-50,100]],
 
 lineColors = [kRed, kBlue, kGreen+2, kCyan] 
 
-def doFit_combined(graphList, qieRange, saveGraph = False, qieNumber = 0, qieUniqueID = "", useCalibrationMode = True, outputDir = '',saveOnlyComb = False):
+def doFit_combined(graphList, qieRange, saveGraph = False, qieNumber = 0, qieUniqueID = "", useCalibrationMode = True, outputDir = '',saveOnlyComb = False, pedestal = [0.,0.,0.,0.]):
 
 	fitLines = []
 	slopes = []
 	offsets = []
 
-	pedestal = [-13.33]*4
+	# pedestal = [-13.33]*4
 	linearizedGraphList = []
 
 	print graphList
@@ -56,16 +56,16 @@ def doFit_combined(graphList, qieRange, saveGraph = False, qieNumber = 0, qieUni
 			graph = nominalgraph.Clone("%s_linearized"%nominalgraph.GetName())
 			graph.SetNameTitle("%s_linearized"%nominalgraph.GetName(),"%s_linearized"%nominalgraph.GetName())
 
-			if i_range==0:
-				for n in range(graph.GetN()):
-					if graph.GetX()[n]>0.5:
-						x1 = graph.GetX()[n+1]
-						y1 = graph.GetY()[n+1]
-						x2 = graph.GetX()[n+2]
-						y2 = graph.GetY()[n+2]
-						m = (y2-y1)/(x2-x1)
-						pedestal[i_capID] = y1 - m*x1
-						break
+		# 	if i_range==0:
+		# 		for n in range(graph.GetN()):
+		# 			if graph.GetX()[n]>0.5:
+		# 				x1 = graph.GetX()[n+1]
+		# 				y1 = graph.GetY()[n+1]
+		# 				x2 = graph.GetX()[n+2]
+		# 				y2 = graph.GetY()[n+2]
+		# 				m = (y2-y1)/(x2-x1)
+		# 				pedestal[i_capID] = y1 - m*x1
+		# 				break
 
 			points = range(graph.GetN())
 			points.reverse()
