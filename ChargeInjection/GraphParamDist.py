@@ -1,7 +1,7 @@
 from ROOT import *
 import sqlite3
 
-gROOT.SetBatch(kTRUE)
+gROOT.SetBatch(True)
 
 def fillHistos(values):
 

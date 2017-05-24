@@ -34,13 +34,13 @@ from FitUncertaintyPlots import *
 
 removeExtraBinContent = True  #### added into the read_histo function to subtract content from ADC 60 in capID0, this seems to be here because of bug in uHTR (extra signal once per orbit???)  flag is here to easily remove it later for testing
 
-gROOT.SetBatch(kTRUE)
+gROOT.SetBatch(True)
 
 UID_SN_DB = sqlite3.connect("/nfshome0/dnoonan/serialNumberToUIDmap.db")
 serialNumcursor = UID_SN_DB.cursor()
 
 
-orbitDelay = 125
+orbitDelay = 160
 GTXreset = 1
 CDRreset = 1
 ### Which slot number contains which injection card {slot:card}
@@ -365,9 +365,9 @@ def QIECalibrationScan(options):
 
 	dacNum = getDACNumber()
 
-	if not checkLinksPluggedIn(ts):
-		print "Links do not seem to be plugged in"
-		sys.exit()
+	# if not checkLinksPluggedIn(ts):
+	# 	print "Links do not seem to be plugged in"
+	# 	sys.exit()
 
 	getGoodLinks(ts, orbitDelay=orbitDelay, GTXreset = GTXreset, CDRreset = CDRreset, forceInit=True)
 

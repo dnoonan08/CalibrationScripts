@@ -10,7 +10,7 @@ import sqlite3 as lite
 import csv
 from linearADC import *
 
-gROOT.SetBatch(kTRUE)
+gROOT.SetBatch(True)
 
 nominalMapping = { 1 : 4,
                    2 : 4,

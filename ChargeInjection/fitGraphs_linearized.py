@@ -8,7 +8,7 @@ from linearADC import *
 
 ####Change the fit to return slopes/offsets in terms of range 0 values for all ranges
 
-gROOT.SetBatch(kTRUE)
+gROOT.SetBatch(True)
 ROOT.gStyle.SetCanvasColor(kWhite)
 gStyle.SetStatStyle(kWhite)
 gStyle.SetTitleStyle(kWhite)

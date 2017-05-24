@@ -18,7 +18,7 @@ from hcal_teststand.qie import *
 from checkLinks import *
 from DAC import *
 
-gROOT.SetBatch(kTRUE)
+gROOT.SetBatch(True)
 
 dacNum = '01'
 

@@ -4,7 +4,7 @@ import numpy
 from array import array
 import os
 
-gROOT.SetBatch(kTRUE)
+gROOT.SetBatch(True)
 ROOT.gStyle.SetCanvasColor(kWhite)
 gStyle.SetStatStyle(kWhite)
 gStyle.SetTitleStyle(kWhite)

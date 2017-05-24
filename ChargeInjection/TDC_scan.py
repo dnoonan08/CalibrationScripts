@@ -17,7 +17,7 @@ from DAC import *
 
 from numpy import mean
 
-gROOT.SetBatch(kTRUE)
+gROOT.SetBatch(True)
 
 scanValues = range(10000,18000,400)
 
